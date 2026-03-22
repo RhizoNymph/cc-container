@@ -100,6 +100,18 @@ pub fn build(
         })
     };
 
+    // Build deploy config if cpu_limit is set
+    let deploy = config.runtime.cpu_limit.as_ref().map(|cpu| dct::Deploy {
+        resources: Some(dct::Resources {
+            limits: Some(dct::Limits {
+                cpus: Some(cpu.clone()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
     dct::Service {
         build_: Some(build_step),
         environment: dct::Environment::KvPair(env),
@@ -113,7 +125,7 @@ pub fn build(
         cap_drop: config.runtime.cap_drop.clone(),
         security_opt: config.runtime.security_opt.clone(),
         mem_limit: config.runtime.memory_limit.clone(),
-        cpus: config.runtime.cpu_limit.as_ref().and_then(|c| c.parse::<f64>().ok()),
+        deploy,
         shm_size: config.runtime.shm_size.clone(),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
