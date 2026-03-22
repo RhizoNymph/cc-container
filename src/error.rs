@@ -5,9 +5,6 @@ pub enum Error {
     #[error("config file not found: {0}")]
     ConfigNotFound(PathBuf),
 
-    #[error("invalid config: {0}")]
-    ConfigInvalid(String),
-
     #[error("failed to parse config: {0}")]
     ConfigParse(#[from] toml::de::Error),
 
@@ -40,9 +37,6 @@ pub enum Error {
 
     #[error("port conflict: port {port} used by both {a} and {b}")]
     PortConflict { port: u16, a: String, b: String },
-
-    #[error("unsupported auth method '{method}' for {agent}")]
-    UnsupportedAuthMethod { agent: String, method: String },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

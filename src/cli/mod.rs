@@ -89,3 +89,10 @@ pub struct CompletionsArgs {
     /// Shell to generate completions for
     pub shell: clap_complete::Shell,
 }
+
+pub(crate) fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let (key, val) = s
+        .split_once('=')
+        .ok_or_else(|| format!("invalid key=value pair: {s}"))?;
+    Ok((key.to_string(), val.to_string()))
+}

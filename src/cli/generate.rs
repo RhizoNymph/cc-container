@@ -40,7 +40,12 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
         .clone()
         .unwrap_or_else(|| target_dir.join("cc-container.toml"));
 
-    let config = crate::config::load_project_config(&config_path)?;
+    let mut config = crate::config::load_project_config(&config_path)?;
+
+    // Merge user defaults if available
+    if let Some(user_config) = crate::config::load_user_config()? {
+        crate::config::merge::merge_configs(&mut config, &user_config);
+    }
 
     // Validate config
     let warnings = crate::config::validate::validate_config(&config)?;

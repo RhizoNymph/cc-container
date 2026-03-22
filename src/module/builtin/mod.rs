@@ -1,5 +1,4 @@
 use super::definition::ModuleDefinition;
-use crate::error::{Error, Result};
 
 /// A built-in module: its TOML definition + Dockerfile template.
 pub struct BuiltinModule {
@@ -56,12 +55,4 @@ pub fn load_all() -> Vec<BuiltinModule> {
             "security/firewall.dockerfile.j2"
         ),
     ]
-}
-
-/// Look up a single built-in module by name.
-pub fn find(name: &str) -> Result<BuiltinModule> {
-    load_all()
-        .into_iter()
-        .find(|m| m.definition.module.name == name)
-        .ok_or_else(|| Error::ModuleNotFound(name.to_string()))
 }

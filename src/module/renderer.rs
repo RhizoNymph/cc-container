@@ -1,4 +1,3 @@
-use indexmap::IndexMap;
 use minijinja::Environment;
 
 use super::registry::ModuleRegistry;

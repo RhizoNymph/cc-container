@@ -33,7 +33,7 @@ pub struct ModuleAddArgs {
     pub names: Vec<String>,
 
     /// Module parameters (key=value)
-    #[arg(long = "with", value_parser = parse_key_val)]
+    #[arg(long = "with", value_parser = super::parse_key_val)]
     pub params: Vec<(String, String)>,
 }
 
@@ -52,13 +52,6 @@ pub struct ModuleCreateArgs {
     /// Output directory
     #[arg(long)]
     pub dir: Option<std::path::PathBuf>,
-}
-
-fn parse_key_val(s: &str) -> Result<(String, String), String> {
-    let (key, val) = s
-        .split_once('=')
-        .ok_or_else(|| format!("invalid key=value pair: {s}"))?;
-    Ok((key.to_string(), val.to_string()))
 }
 
 pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Result<()> {
