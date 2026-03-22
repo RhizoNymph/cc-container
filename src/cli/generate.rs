@@ -65,8 +65,10 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
         match target {
             GenerateTarget::Dockerfile => {
                 generate_dockerfile(&config, &output_dir, args.dry_run)?;
-                // Co-generate files the Dockerfile COPYs
-                if config.firewall.enabled {
+                // Co-generate files the Dockerfile COPYs, but only if they
+                // aren't already in the target list (avoids double output)
+                let firewall_already_targeted = targets.iter().any(|t| matches!(t, GenerateTarget::Firewall));
+                if config.firewall.enabled && !firewall_already_targeted {
                     generate_firewall(&config, &output_dir, args.dry_run)?;
                 }
             }
