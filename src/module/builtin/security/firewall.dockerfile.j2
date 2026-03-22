@@ -1,6 +1,6 @@
 # Firewall setup
 {% if base_os == "alpine" %}
-RUN apk add --no-cache iptables ipset
+RUN apk add --no-cache iptables ipset bind-tools
 {% else %}
 RUN apt-get update && apt-get install -y --no-install-recommends \
     iptables \

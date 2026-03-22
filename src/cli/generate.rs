@@ -65,6 +65,10 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
         match target {
             GenerateTarget::Dockerfile => {
                 generate_dockerfile(&config, &output_dir, args.dry_run)?;
+                // Co-generate files the Dockerfile COPYs
+                if config.firewall.enabled {
+                    generate_firewall(&config, &output_dir, args.dry_run)?;
+                }
             }
             GenerateTarget::Compose => {
                 generate_compose(&config, &output_dir, args.dry_run)?;
