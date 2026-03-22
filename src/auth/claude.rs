@@ -32,7 +32,7 @@ fn oauth_requirements(container_user: &str) -> AuthRequirements {
     AuthRequirements {
         env_vars: IndexMap::new(),
         volumes: vec![AuthVolume {
-            source: "~/.claude/.credentials.json".to_string(),
+            source: "${HOME}/.claude/.credentials.json".to_string(),
             target: format!("/home/{}/.claude/.credentials.json", container_user),
             read_only: true,
         }],
