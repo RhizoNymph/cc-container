@@ -10,7 +10,7 @@ pub fn traefik(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
     let svc = dct::Service {
         image: Some(format!("traefik:{version}")),
         command: Some(dct::Command::Simple(
-            "--api.insecure=true --providers.docker=true".to_string(),
+            "--api.insecure=true --providers.docker=true --ping=true".to_string(),
         )),
         ports: dct::Ports::Short(vec![
             format!("{port}:80"),
@@ -19,6 +19,15 @@ pub fn traefik(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
         volumes: vec![dct::Volumes::Simple(
             "/var/run/docker.sock:/var/run/docker.sock:ro".to_string(),
         )],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "traefik healthcheck --ping || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
@@ -33,6 +42,15 @@ pub fn nginx(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
     let svc = dct::Service {
         image: Some(format!("nginx:{version}")),
         ports: dct::Ports::Short(vec![format!("{port}:80")]),
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "curl -f http://localhost:80/ || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };

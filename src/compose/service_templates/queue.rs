@@ -50,6 +50,16 @@ pub fn kafka(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
             "8081:8081".to_string(),
         ]),
         volumes: vec![dct::Volumes::Simple("redpandadata:/var/lib/redpanda/data".to_string())],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "rpk cluster health | grep -q 'HEALTHY' || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
@@ -68,11 +78,20 @@ pub fn nats(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, St
 
     let svc = dct::Service {
         image: Some(format!("nats:{version}")),
-        command: Some(dct::Command::Simple("--jetstream".to_string())),
+        command: Some(dct::Command::Simple("--jetstream --http_port 8222".to_string())),
         ports: dct::Ports::Short(vec![
             format!("{host_port}:4222"),
             "8222:8222".to_string(),
         ]),
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "wget -q --spider http://localhost:8222/healthz || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };

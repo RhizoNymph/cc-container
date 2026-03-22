@@ -53,6 +53,16 @@ pub fn meilisearch(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
         environment: dct::Environment::KvPair(IndexMap::from([
             ("MEILI_ENV".to_string(), Some(dct::SingleValue::String("development".to_string()))),
         ])),
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "curl -f http://localhost:7700/health || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
@@ -77,6 +87,16 @@ pub fn typesense(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
             ("TYPESENSE_API_KEY".to_string(), Some(dct::SingleValue::String("${TYPESENSE_API_KEY:-changeme}".to_string()))),
             ("TYPESENSE_DATA_DIR".to_string(), Some(dct::SingleValue::String("/data".to_string()))),
         ])),
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "curl -f http://localhost:8108/health || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };

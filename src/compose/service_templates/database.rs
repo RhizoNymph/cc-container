@@ -108,6 +108,16 @@ pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
             ("MARIADB_ROOT_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{root_password_env}}}")))),
         ])),
         volumes: vec![dct::Volumes::Simple(format!("mariadbdata-{db}:/var/lib/mysql"))],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "mariadb-admin ping -h localhost".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
@@ -128,6 +138,16 @@ pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
         image: Some(format!("mongo:{version}")),
         ports: dct::Ports::Short(vec![format!("{host_port}:27017")]),
         volumes: vec![dct::Volumes::Simple("mongodata:/data/db".to_string())],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
@@ -152,6 +172,16 @@ pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
             "8080:8080".to_string(),
         ]),
         volumes: vec![dct::Volumes::Simple("crdbdata:/cockroach/cockroach-data".to_string())],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "curl -f http://localhost:8080/health?ready=1 || exit 1".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            start_period: Some("30s".to_string()),
+            ..Default::default()
+        }),
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
     };
