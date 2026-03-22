@@ -120,7 +120,16 @@ pub fn generate(config: &ProjectConfig) -> String {
     script.push_str("# Default deny all other outbound traffic\n");
     script.push_str("iptables -A OUTPUT -j DROP\n\n");
 
-    script.push_str("echo \"Firewall configured: $(ipset list allowed_ips | grep -c 'Members') IPs allowed\"\n");
+    // Block IPv6 egress
+    script.push_str("# Block IPv6 egress (prevent bypass of IPv4 firewall)\n");
+    script.push_str("if command -v ip6tables &>/dev/null; then\n");
+    script.push_str("  ip6tables -F OUTPUT\n");
+    script.push_str("  ip6tables -A OUTPUT -o lo -j ACCEPT\n");
+    script.push_str("  ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT\n");
+    script.push_str("  ip6tables -A OUTPUT -j DROP\n");
+    script.push_str("fi\n\n");
+
+    script.push_str("echo \"Firewall configured: $(ipset list allowed_ips | grep -c '^[0-9]') IPs allowed\"\n");
 
     script
 }
