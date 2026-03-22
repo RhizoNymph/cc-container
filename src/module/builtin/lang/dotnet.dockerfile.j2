@@ -1,0 +1,14 @@
+# .NET {{ params.version }}
+{% if base_os == "alpine" %}
+RUN apk add --no-cache dotnet{{ params.version | replace(".", "") }}-sdk
+{% else %}
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget apt-transport-https \
+    && wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel {{ params.version }} --install-dir /usr/share/dotnet \
+    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
+    && rm /tmp/dotnet-install.sh \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+{% endif %}
+ENV DOTNET_ROOT=/usr/share/dotnet

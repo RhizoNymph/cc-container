@@ -1,0 +1,4 @@
+# Zig {{ params.version }}
+RUN curl -fsSL "https://ziglang.org/download/{{ params.version }}/zig-linux-$(uname -m)-{{ params.version }}.tar.xz" | \
+    tar -xJ -C /usr/local \
+    && ln -s /usr/local/zig-linux-*-{{ params.version }}/zig /usr/local/bin/zig

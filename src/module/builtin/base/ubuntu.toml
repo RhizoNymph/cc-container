@@ -1,0 +1,13 @@
+[module]
+name = "ubuntu"
+category = "base"
+description = "Ubuntu base image"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "24.04", description = "Ubuntu version" }
+
+[module.dependencies]
+requires = []
+conflicts = ["debian", "alpine"]
+after = []

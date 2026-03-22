@@ -1,0 +1,13 @@
+[module]
+name = "claude-code"
+category = "agent"
+description = "Claude Code CLI"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "latest", description = "Claude Code npm package version" }
+
+[module.dependencies]
+requires = ["node"]
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "node", "user-setup", "git"]

@@ -1,0 +1,18 @@
+[module]
+name = "python"
+category = "lang"
+description = "Python runtime and package managers"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "3.12", description = "Python version" }
+install_poetry = { type = "bool", default = false, description = "Install Poetry" }
+install_uv = { type = "bool", default = true, description = "Install uv package manager" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]
+
+[module.metadata]
+env_vars = ["PYTHON_VERSION"]

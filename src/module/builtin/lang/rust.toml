@@ -1,0 +1,17 @@
+[module]
+name = "rust"
+category = "lang"
+description = "Rust toolchain via rustup"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "stable", description = "Rust toolchain (stable, nightly, or specific version)" }
+components = { type = "list", default = ["clippy", "rustfmt"], description = "Additional components to install" }
+
+[module.dependencies]
+requires = ["build-essential"]
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "build-essential", "user-setup"]
+
+[module.metadata]
+env_vars = ["RUSTUP_HOME", "CARGO_HOME"]

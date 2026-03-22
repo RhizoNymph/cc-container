@@ -1,0 +1,10 @@
+[module]
+name = "docker-cli"
+category = "tool"
+description = "Docker CLI (for Docker-in-Docker or socket mounting)"
+version = "1.0.0"
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine"]

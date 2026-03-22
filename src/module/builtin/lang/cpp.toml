@@ -1,0 +1,10 @@
+[module]
+name = "cpp"
+category = "lang"
+description = "C/C++ development tools (gcc, g++, cmake)"
+version = "1.0.0"
+
+[module.dependencies]
+requires = ["build-essential"]
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "build-essential", "user-setup"]

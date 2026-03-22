@@ -1,0 +1,16 @@
+[module]
+name = "go"
+category = "lang"
+description = "Go programming language"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "1.23", description = "Go version" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]
+
+[module.metadata]
+env_vars = ["GOPATH", "GOROOT"]

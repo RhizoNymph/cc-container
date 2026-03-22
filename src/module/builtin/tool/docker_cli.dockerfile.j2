@@ -1,0 +1,12 @@
+# Docker CLI
+{% if base_os == "alpine" %}
+RUN apk add --no-cache docker-cli docker-cli-compose
+{% else %}
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/{{ base_os }}/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ base_os }} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+{% endif %}

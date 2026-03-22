@@ -1,0 +1,11 @@
+# Rust {{ params.version }}
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --default-toolchain {{ params.version }} --profile minimal \
+    && chmod -R a+w ${RUSTUP_HOME} ${CARGO_HOME}
+{% if params.components is defined and params.components %}
+RUN rustup component add {{ params.components | join(" ") }}
+{% endif %}

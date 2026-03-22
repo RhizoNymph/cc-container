@@ -1,0 +1,16 @@
+[module]
+name = "dotnet"
+category = "lang"
+description = ".NET SDK"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "8.0", description = ".NET SDK version" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]
+
+[module.metadata]
+env_vars = ["DOTNET_ROOT"]

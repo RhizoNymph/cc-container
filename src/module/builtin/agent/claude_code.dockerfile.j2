@@ -1,0 +1,6 @@
+# Claude Code CLI
+{% if params.version == "latest" %}
+RUN npm install -g @anthropic-ai/claude-code
+{% else %}
+RUN npm install -g @anthropic-ai/claude-code@{{ params.version }}
+{% endif %}

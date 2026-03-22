@@ -1,0 +1,10 @@
+# Go {{ params.version }}
+{% if base_os == "alpine" %}
+RUN apk add --no-cache go
+{% else %}
+RUN curl -fsSL "https://go.dev/dl/go{{ params.version }}.linux-$(dpkg --print-architecture).tar.gz" | \
+    tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+{% endif %}
+ENV GOPATH=/home/{{ image.user }}/go
+ENV PATH="${GOPATH}/bin:${PATH}"

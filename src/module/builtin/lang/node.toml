@@ -1,0 +1,16 @@
+[module]
+name = "node"
+category = "lang"
+description = "Node.js runtime via NodeSource"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "22", description = "Node.js major version" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]
+
+[module.metadata]
+env_vars = ["NODE_VERSION"]

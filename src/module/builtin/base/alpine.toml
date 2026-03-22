@@ -1,0 +1,13 @@
+[module]
+name = "alpine"
+category = "base"
+description = "Alpine Linux base image"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "3.21", description = "Alpine version" }
+
+[module.dependencies]
+requires = []
+conflicts = ["ubuntu", "debian"]
+after = []

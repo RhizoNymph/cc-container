@@ -1,0 +1,6 @@
+# OpenAI Codex CLI
+{% if params.version == "latest" %}
+RUN npm install -g @openai/codex
+{% else %}
+RUN npm install -g @openai/codex@{{ params.version }}
+{% endif %}

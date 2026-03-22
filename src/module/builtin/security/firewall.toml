@@ -1,0 +1,10 @@
+[module]
+name = "firewall"
+category = "security"
+description = "iptables-based firewall with domain whitelisting"
+version = "1.0.0"
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]

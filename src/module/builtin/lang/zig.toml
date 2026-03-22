@@ -1,0 +1,13 @@
+[module]
+name = "zig"
+category = "lang"
+description = "Zig programming language"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "0.13.0", description = "Zig version" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]

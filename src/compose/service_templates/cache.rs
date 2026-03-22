@@ -1,0 +1,52 @@
+use crate::config::project::ServiceConfig;
+use crate::error::Result;
+use docker_compose_types as dct;
+use indexmap::IndexMap;
+
+pub fn redis(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
+    let version = config.version.as_deref().unwrap_or("7-alpine");
+    let port = config.port.unwrap_or(6379);
+
+    let svc = dct::Service {
+        image: Some(format!("redis:{version}")),
+        ports: dct::Ports::Short(vec![format!("{port}:6379")]),
+        volumes: vec![dct::Volumes::Simple("redisdata:/data".to_string())],
+        healthcheck: Some(dct::Healthcheck {
+            test: Some(dct::HealthcheckTest::Single(
+                "redis-cli ping".to_string(),
+            )),
+            interval: Some("10s".to_string()),
+            timeout: Some("5s".to_string()),
+            retries: 5,
+            ..Default::default()
+        }),
+        restart: Some("unless-stopped".to_string()),
+        ..Default::default()
+    };
+
+    let agent_env = IndexMap::from([(
+        "REDIS_URL".to_string(),
+        format!("redis://redis:{port}"),
+    )]);
+
+    Ok((svc, agent_env))
+}
+
+pub fn memcached(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
+    let version = config.version.as_deref().unwrap_or("1-alpine");
+    let port = config.port.unwrap_or(11211);
+
+    let svc = dct::Service {
+        image: Some(format!("memcached:{version}")),
+        ports: dct::Ports::Short(vec![format!("{port}:11211")]),
+        restart: Some("unless-stopped".to_string()),
+        ..Default::default()
+    };
+
+    let agent_env = IndexMap::from([(
+        "MEMCACHED_URL".to_string(),
+        format!("memcached:{port}"),
+    )]);
+
+    Ok((svc, agent_env))
+}

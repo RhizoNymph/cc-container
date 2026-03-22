@@ -1,0 +1,14 @@
+# Java {{ params.version }} (Eclipse Temurin)
+{% if base_os == "alpine" %}
+RUN apk add --no-cache openjdk{{ params.version }}-jdk
+{% else %}
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget apt-transport-https \
+    && mkdir -p /etc/apt/keyrings \
+    && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc \
+    && echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo "$VERSION_CODENAME") main" | tee /etc/apt/sources.list.d/adoptium.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends temurin-{{ params.version }}-jdk \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+{% endif %}
+ENV JAVA_HOME=/usr

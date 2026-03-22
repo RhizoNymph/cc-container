@@ -1,0 +1,16 @@
+[module]
+name = "java"
+category = "lang"
+description = "Java Development Kit (Eclipse Temurin)"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "21", description = "Java major version (17, 21)" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "user-setup"]
+
+[module.metadata]
+env_vars = ["JAVA_HOME"]

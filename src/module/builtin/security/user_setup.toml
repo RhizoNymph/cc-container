@@ -1,0 +1,14 @@
+[module]
+name = "user-setup"
+category = "security"
+description = "Create non-root user with sudo access"
+version = "1.0.0"
+
+[module.parameters]
+username = { type = "string", default = "dev", description = "Username for the non-root user" }
+shell = { type = "string", default = "/bin/bash", description = "Default shell" }
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine"]

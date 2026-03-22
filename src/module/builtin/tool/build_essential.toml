@@ -1,0 +1,10 @@
+[module]
+name = "build-essential"
+category = "tool"
+description = "Build tools (gcc, make, etc.)"
+version = "1.0.0"
+
+[module.dependencies]
+requires = []
+conflicts = []
+after = ["ubuntu", "debian", "alpine"]

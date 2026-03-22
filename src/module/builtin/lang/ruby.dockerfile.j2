@@ -1,0 +1,8 @@
+# Ruby
+{% if base_os == "alpine" %}
+RUN apk add --no-cache ruby ruby-dev ruby-bundler
+{% else %}
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ruby-full ruby-bundler \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+{% endif %}

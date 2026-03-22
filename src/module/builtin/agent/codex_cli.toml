@@ -1,0 +1,13 @@
+[module]
+name = "codex-cli"
+category = "agent"
+description = "OpenAI Codex CLI"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "latest", description = "Codex CLI npm package version" }
+
+[module.dependencies]
+requires = ["node"]
+conflicts = []
+after = ["ubuntu", "debian", "alpine", "node", "user-setup", "git"]

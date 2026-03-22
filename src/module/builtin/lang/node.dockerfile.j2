@@ -1,0 +1,12 @@
+# Node.js {{ params.version }}
+{% if base_os == "alpine" %}
+RUN apk add --no-cache nodejs npm \
+    && npm install -g corepack \
+    && corepack enable
+{% else %}
+RUN curl -fsSL https://deb.nodesource.com/setup_{{ params.version }}.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g corepack \
+    && corepack enable \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+{% endif %}

@@ -1,0 +1,9 @@
+FROM alpine:{{ params.version }}
+
+RUN apk add --no-cache \
+    ca-certificates \
+    curl \
+    wget \
+    sudo \
+    bash \
+    shadow

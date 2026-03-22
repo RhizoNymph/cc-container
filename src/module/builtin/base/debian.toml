@@ -1,0 +1,13 @@
+[module]
+name = "debian"
+category = "base"
+description = "Debian base image"
+version = "1.0.0"
+
+[module.parameters]
+version = { type = "string", default = "bookworm", description = "Debian version" }
+
+[module.dependencies]
+requires = []
+conflicts = ["ubuntu", "alpine"]
+after = []
