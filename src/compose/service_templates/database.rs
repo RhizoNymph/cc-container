@@ -14,14 +14,14 @@ fn get_str(config: &ServiceConfig, key: &str, default: &str) -> String {
 
 pub fn postgres(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("16");
-    let port = config.port.unwrap_or(5432);
+    let host_port = config.port.unwrap_or(5432);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "POSTGRES_PASSWORD");
 
     let svc = dct::Service {
         image: Some(format!("postgres:{version}")),
-        ports: dct::Ports::Short(vec![format!("{port}:5432")]),
+        ports: dct::Ports::Short(vec![format!("{host_port}:5432")]),
         environment: dct::Environment::KvPair(IndexMap::from([
             ("POSTGRES_DB".to_string(), Some(dct::SingleValue::String(db.clone()))),
             ("POSTGRES_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
@@ -44,7 +44,7 @@ pub fn postgres(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("postgres://{user}:${{{password_env}}}@postgres:{port}/{db}"),
+        format!("postgres://{user}:${{{password_env}}}@postgres:5432/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -52,7 +52,7 @@ pub fn postgres(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String
 
 pub fn mysql(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("8");
-    let port = config.port.unwrap_or(3306);
+    let host_port = config.port.unwrap_or(3306);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "MYSQL_PASSWORD");
@@ -60,7 +60,7 @@ pub fn mysql(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     let svc = dct::Service {
         image: Some(format!("mysql:{version}")),
-        ports: dct::Ports::Short(vec![format!("{port}:3306")]),
+        ports: dct::Ports::Short(vec![format!("{host_port}:3306")]),
         environment: dct::Environment::KvPair(IndexMap::from([
             ("MYSQL_DATABASE".to_string(), Some(dct::SingleValue::String(db.clone()))),
             ("MYSQL_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
@@ -84,7 +84,7 @@ pub fn mysql(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mysql:{port}/{db}"),
+        format!("mysql://{user}:${{{password_env}}}@mysql:3306/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -92,7 +92,7 @@ pub fn mysql(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
 pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("11");
-    let port = config.port.unwrap_or(3306);
+    let host_port = config.port.unwrap_or(3306);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "MARIADB_PASSWORD");
@@ -100,7 +100,7 @@ pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
     let svc = dct::Service {
         image: Some(format!("mariadb:{version}")),
-        ports: dct::Ports::Short(vec![format!("{port}:3306")]),
+        ports: dct::Ports::Short(vec![format!("{host_port}:3306")]),
         environment: dct::Environment::KvPair(IndexMap::from([
             ("MARIADB_DATABASE".to_string(), Some(dct::SingleValue::String(db.clone()))),
             ("MARIADB_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
@@ -114,7 +114,7 @@ pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mariadb:{port}/{db}"),
+        format!("mysql://{user}:${{{password_env}}}@mariadb:3306/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -122,11 +122,11 @@ pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
 pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("7");
-    let port = config.port.unwrap_or(27017);
+    let host_port = config.port.unwrap_or(27017);
 
     let svc = dct::Service {
         image: Some(format!("mongo:{version}")),
-        ports: dct::Ports::Short(vec![format!("{port}:27017")]),
+        ports: dct::Ports::Short(vec![format!("{host_port}:27017")]),
         volumes: vec![dct::Volumes::Simple("mongodata:/data/db".to_string())],
         restart: Some("unless-stopped".to_string()),
         ..Default::default()
@@ -134,7 +134,7 @@ pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
     let agent_env = IndexMap::from([(
         "MONGODB_URL".to_string(),
-        format!("mongodb://mongodb:{port}"),
+        format!("mongodb://mongodb:27017"),
     )]);
 
     Ok((svc, agent_env))
@@ -142,13 +142,13 @@ pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
 pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
-    let port = config.port.unwrap_or(26257);
+    let host_port = config.port.unwrap_or(26257);
 
     let svc = dct::Service {
         image: Some(format!("cockroachdb/cockroach:{version}")),
         command: Some(dct::Command::Simple("start-single-node --insecure".to_string())),
         ports: dct::Ports::Short(vec![
-            format!("{port}:26257"),
+            format!("{host_port}:26257"),
             "8080:8080".to_string(),
         ]),
         volumes: vec![dct::Volumes::Simple("crdbdata:/cockroach/cockroach-data".to_string())],
@@ -158,7 +158,7 @@ pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("postgres://root@cockroachdb:{port}/defaultdb?sslmode=disable"),
+        format!("postgres://root@cockroachdb:26257/defaultdb?sslmode=disable"),
     )]);
 
     Ok((svc, agent_env))
