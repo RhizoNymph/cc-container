@@ -36,6 +36,7 @@ impl ModuleRegistry {
     }
 
     /// Load user-defined modules from a directory, adding to/overriding the registry.
+    #[allow(dead_code)]
     pub fn load_user_modules(&mut self, dir: &Path) -> Result<()> {
         if !dir.exists() {
             return Ok(());
