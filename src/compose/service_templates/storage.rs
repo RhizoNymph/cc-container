@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 
 pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
-    let port = config.port.unwrap_or(9000);
+    let host_port = config.port.unwrap_or(9000);
 
     let console_port = config
         .extra
@@ -19,7 +19,7 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
             "server /data --console-address :{console_port}"
         ))),
         ports: dct::Ports::Short(vec![
-            format!("{port}:9000"),
+            format!("{host_port}:9000"),
             format!("{console_port}:9001"),
         ]),
         environment: dct::Environment::KvPair(IndexMap::from([
@@ -41,7 +41,7 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
     };
 
     let agent_env = IndexMap::from([
-        ("S3_ENDPOINT".to_string(), format!("http://minio:{port}")),
+        ("S3_ENDPOINT".to_string(), format!("http://minio:9000")),
         ("AWS_ACCESS_KEY_ID".to_string(), "${MINIO_ACCESS_KEY:-minioadmin}".to_string()),
         ("AWS_SECRET_ACCESS_KEY".to_string(), "${MINIO_SECRET_KEY:-minioadmin}".to_string()),
     ]);
