@@ -3,7 +3,7 @@ use minijinja::Environment;
 
 use super::registry::ModuleRegistry;
 use super::resolver::ModuleResolver;
-use crate::config::project::{AgentType, ProjectConfig};
+use crate::config::project::{AgentType, ProjectConfig, default_version_for_os};
 use crate::error::{Error, Result};
 
 /// Generates a complete Dockerfile from project config and module templates.
@@ -29,9 +29,11 @@ impl<'a> DockerfileGenerator<'a> {
         let base_name = config.image.base.to_string();
         if !modules.contains_key(&base_name) {
             let mut base_params = toml::map::Map::new();
+            let version = config.image.base_version.clone()
+                .unwrap_or_else(|| default_version_for_os(config.image.base).to_string());
             base_params.insert(
                 "version".to_string(),
-                toml::Value::String(config.image.base_version.clone()),
+                toml::Value::String(version),
             );
             modules.insert(base_name.clone(), toml::Value::Table(base_params));
         }
