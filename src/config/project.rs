@@ -68,8 +68,8 @@ impl std::fmt::Display for AgentType {
 pub struct ImageConfig {
     #[serde(default = "default_ubuntu")]
     pub base: BaseOs,
-    #[serde(default = "default_base_version")]
-    pub base_version: String,
+    #[serde(default)]
+    pub base_version: Option<String>,
     #[serde(default = "default_platform")]
     pub platform: String,
     #[serde(default)]
@@ -84,7 +84,7 @@ impl Default for ImageConfig {
     fn default() -> Self {
         Self {
             base: BaseOs::Ubuntu,
-            base_version: default_base_version(),
+            base_version: None,
             platform: default_platform(),
             tag: None,
             user: default_user(),
@@ -336,8 +336,13 @@ fn default_ubuntu() -> BaseOs {
     BaseOs::Ubuntu
 }
 
-fn default_base_version() -> String {
-    "24.04".to_string()
+/// Returns the default Docker tag for the given base OS.
+pub fn default_version_for_os(os: BaseOs) -> &'static str {
+    match os {
+        BaseOs::Ubuntu => "24.04",
+        BaseOs::Debian => "bookworm",
+        BaseOs::Alpine => "3.21",
+    }
 }
 
 fn default_platform() -> String {

@@ -26,10 +26,10 @@ pub fn run(target: &Path) -> crate::error::Result<ProjectConfig> {
     // Base OS
     let os_idx = prompts::select_base_os()
         .map_err(|e| crate::error::Error::Other(format!("prompt error: {e}")))?;
-    let (base, base_version) = match os_idx {
-        0 => (BaseOs::Ubuntu, "24.04".to_string()),
-        1 => (BaseOs::Debian, "bookworm".to_string()),
-        _ => (BaseOs::Alpine, "3.21".to_string()),
+    let base = match os_idx {
+        0 => BaseOs::Ubuntu,
+        1 => BaseOs::Debian,
+        _ => BaseOs::Alpine,
     };
 
     // Shell
@@ -139,7 +139,7 @@ pub fn run(target: &Path) -> crate::error::Result<ProjectConfig> {
         },
         image: ImageConfig {
             base,
-            base_version,
+            base_version: None,
             platform: "linux/amd64".to_string(),
             tag: None,
             user: "dev".to_string(),
