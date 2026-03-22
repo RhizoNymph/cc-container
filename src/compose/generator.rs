@@ -16,6 +16,8 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
     let mut infra_service_names: Vec<String> = Vec::new();
 
     // Build infrastructure services
+    let mut db_url_sources: Vec<(String, String)> = Vec::new(); // (service_name, url_value)
+
     for (name, svc_config) in &config.services {
         if !svc_config.enabled {
             continue;
@@ -23,13 +25,41 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
 
         let (service, agent_env) = service_templates::build_service(name, svc_config)?;
         services.insert(name.clone(), Some(service));
-        infra_env.extend(agent_env);
         infra_service_names.push(name.clone());
 
-        // Collect volume names from service volumes
-        // (services reference named volumes like "pgdata-devdb:/var/lib/...")
-        // We'll add them to the top-level volumes section
+        for (key, val) in agent_env {
+            if key == "DATABASE_URL" {
+                db_url_sources.push((name.clone(), val));
+            } else {
+                infra_env.insert(key, val);
+            }
+        }
     }
+
+    // Handle DATABASE_URL: if only one database, use DATABASE_URL directly.
+    // If multiple, use service-specific names and warn.
+    match db_url_sources.len() {
+        0 => {}
+        1 => {
+            let (_name, url) = db_url_sources.into_iter().next().unwrap();
+            infra_env.insert("DATABASE_URL".to_string(), url);
+        }
+        _ => {
+            eprintln!("warning: multiple services set DATABASE_URL; using service-specific env vars");
+            for (name, url) in &db_url_sources {
+                let specific_key = format!("{}_URL", name.to_uppercase());
+                infra_env.insert(specific_key, url.clone());
+            }
+            // Also set DATABASE_URL to the first one as a convenience default
+            let (name, url) = &db_url_sources[0];
+            infra_env.insert("DATABASE_URL".to_string(), url.clone());
+            eprintln!("  DATABASE_URL defaults to {} ({})", name, url);
+        }
+    }
+
+    // Collect volume names from service volumes
+    // (services reference named volumes like "pgdata-devdb:/var/lib/...")
+    // We'll add them to the top-level volumes section
 
     // Build MCP server services
     for (name, mcp_config) in &config.mcp {

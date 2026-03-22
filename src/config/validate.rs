@@ -1,4 +1,4 @@
-use super::project::{AgentType, ProjectConfig};
+use super::project::{AgentType, ProjectConfig, ServiceConfig};
 
 /// A validation warning (non-fatal).
 #[derive(Debug)]
@@ -41,23 +41,23 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
         AgentType::Claude => {}
     }
 
-    // Check for port conflicts among enabled services
+    // Check for port conflicts among enabled services (primary + secondary ports)
     let mut ports: Vec<(u16, String)> = Vec::new();
     for (name, svc) in &config.services {
         if !svc.enabled {
             continue;
         }
-        if let Some(port) = svc.port {
-            for (existing_port, existing_name) in &ports {
+        for (port, label) in all_ports_for_service(name, svc) {
+            for (existing_port, existing_label) in &ports {
                 if *existing_port == port {
                     return Err(crate::error::Error::PortConflict {
                         port,
-                        a: existing_name.clone(),
-                        b: name.clone(),
+                        a: existing_label.clone(),
+                        b: label.clone(),
                     });
                 }
             }
-            ports.push((port, name.clone()));
+            ports.push((port, label));
         }
     }
 
@@ -71,4 +71,33 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
     }
 
     Ok(warnings)
+}
+
+/// Returns all host-bound ports for a service: the primary configurable port
+/// plus any hardcoded secondary ports emitted by the template.
+fn all_ports_for_service(name: &str, config: &ServiceConfig) -> Vec<(u16, String)> {
+    let mut ports = Vec::new();
+
+    if let Some(port) = config.port {
+        ports.push((port, name.to_string()));
+    }
+
+    // Secondary hardcoded ports from service templates
+    match name {
+        "cockroachdb" => ports.push((8080, format!("{name} admin UI"))),
+        "rabbitmq" => ports.push((15672, format!("{name} management"))),
+        "kafka" => ports.push((8081, format!("{name} schema registry"))),
+        "nats" => ports.push((8222, format!("{name} monitoring"))),
+        "traefik" => ports.push((8080, format!("{name} dashboard"))),
+        "minio" => {
+            let console_port = config.extra
+                .get("console_port")
+                .and_then(|v| v.as_integer())
+                .unwrap_or(9001) as u16;
+            ports.push((console_port, format!("{name} console")));
+        }
+        _ => {}
+    }
+
+    ports
 }
