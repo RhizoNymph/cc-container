@@ -55,7 +55,7 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
 
     match cmd {
         ConfigCommand::Show(args) => {
-            let config = crate::config::load_project_config(&config_path)?;
+            let config = crate::config::load_effective_config(&config_path)?;
             let output = match args.format {
                 ConfigFormat::Toml => {
                     toml::to_string_pretty(&config).map_err(crate::error::Error::TomlSerialize)?
@@ -68,7 +68,7 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
             println!("{output}");
         }
         ConfigCommand::Validate => {
-            let config = crate::config::load_project_config(&config_path)?;
+            let config = crate::config::load_effective_config(&config_path)?;
             let warnings = crate::config::validate::validate_config(&config)?;
             if warnings.is_empty() {
                 eprintln!("Configuration is valid.");

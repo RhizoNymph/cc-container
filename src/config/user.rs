@@ -13,8 +13,6 @@ pub struct UserConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserDefaults {
     #[serde(default)]
-    pub agent: Option<String>,
-    #[serde(default)]
     pub base: Option<BaseOs>,
     #[serde(default)]
     pub base_version: Option<String>,
