@@ -187,3 +187,355 @@ fn generate_mcp(
     let content = crate::mcp::config::generate_mcp_json(config)?;
     write_output(output_dir, ".mcp.json", &content, dry_run)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+    use indexmap::IndexMap;
+
+    /// Build a minimal valid ProjectConfig for testing.
+    fn minimal_config() -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type: AgentType::Claude,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig::default(),
+            modules: IndexMap::new(),
+            auth: AuthConfig {
+                claude: Some(ClaudeAuthConfig {
+                    method: ClaudeAuthMethod::ApiKey,
+                }),
+                codex: None,
+            },
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+        }
+    }
+
+    /// Write a minimal config file and return path.
+    fn write_config(dir: &std::path::Path) -> std::path::PathBuf {
+        let config = minimal_config();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let path = dir.join("cc-container.toml");
+        std::fs::write(&path, toml_str).unwrap();
+        path
+    }
+
+    // --- write_output tests ---
+
+    #[test]
+    fn write_output_creates_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_output(dir.path(), "test.txt", "hello", false).unwrap();
+        let content = std::fs::read_to_string(dir.path().join("test.txt")).unwrap();
+        assert_eq!(content, "hello");
+    }
+
+    #[test]
+    fn write_output_dry_run_does_not_create_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_output(dir.path(), "test.txt", "hello", true).unwrap();
+        assert!(!dir.path().join("test.txt").exists());
+    }
+
+    // --- run() integration tests ---
+
+    #[test]
+    fn generate_creates_dockerfile() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Dockerfile]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join("Dockerfile").exists());
+    }
+
+    #[test]
+    fn generate_creates_compose_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Compose]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join("docker-compose.yml").exists());
+    }
+
+    #[test]
+    fn generate_creates_env_example() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Env]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join(".env.example").exists());
+    }
+
+    #[test]
+    fn generate_firewall_skipped_when_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Firewall]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        // Firewall is disabled by default, so no file should be created
+        assert!(!out_dir.path().join("init-firewall.sh").exists());
+    }
+
+    #[test]
+    fn generate_firewall_created_when_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let mut config = minimal_config();
+        config.firewall.enabled = true;
+        config.firewall.allowed_domains = vec!["api.anthropic.com".to_string()];
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let config_path = dir.path().join("cc-container.toml");
+        std::fs::write(&config_path, toml_str).unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Firewall]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join("init-firewall.sh").exists());
+    }
+
+    #[test]
+    fn generate_mcp_skipped_when_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Mcp]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(!out_dir.path().join(".mcp.json").exists());
+    }
+
+    #[test]
+    fn generate_all_targets_by_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: None, // default: all targets
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join("Dockerfile").exists());
+        assert!(out_dir.path().join("docker-compose.yml").exists());
+        assert!(out_dir.path().join(".env.example").exists());
+    }
+
+    #[test]
+    fn generate_dry_run_creates_no_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = tempfile::tempdir().unwrap();
+
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: true,
+            only: None,
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        // No files should be written in dry-run mode
+        let entries: Vec<_> = std::fs::read_dir(out_dir.path()).unwrap().collect();
+        assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn generate_errors_on_missing_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing_config = dir.path().join("nonexistent.toml");
+
+        let args = GenerateArgs {
+            output: None,
+            dry_run: false,
+            only: None,
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(missing_config),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        let result = run(&args, &global);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn generate_both_agent_creates_two_dockerfiles() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let mut config = minimal_config();
+        config.agent.agent_type = AgentType::Both;
+        config.auth.codex = Some(CodexAuthConfig {
+            method: CodexAuthMethod::ApiKey,
+            azure_endpoint: None,
+            custom_env_key: None,
+            custom_base_url: None,
+        });
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let config_path = dir.path().join("cc-container.toml");
+        std::fs::write(&config_path, toml_str).unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let args = GenerateArgs {
+            output: Some(out_dir.path().to_path_buf()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Dockerfile]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.path().join("Dockerfile.claude").exists());
+        assert!(out_dir.path().join("Dockerfile.codex").exists());
+    }
+
+    #[test]
+    fn generate_creates_output_dir_if_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let out_dir = dir.path().join("nested").join("output");
+
+        let args = GenerateArgs {
+            output: Some(out_dir.clone()),
+            dry_run: false,
+            only: Some(vec![GenerateTarget::Env]),
+            diff: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(out_dir.join(".env.example").exists());
+    }
+}

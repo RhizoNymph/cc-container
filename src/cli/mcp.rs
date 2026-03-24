@@ -38,6 +38,63 @@ pub struct McpRemoveArgs {
     pub name: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn default_global() -> super::super::GlobalOpts {
+        super::super::GlobalOpts {
+            target_dir: None,
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        }
+    }
+
+    #[test]
+    fn mcp_list_runs_without_error() {
+        let cmd = McpCommand::List;
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn mcp_add_runs_without_error() {
+        let cmd = McpCommand::Add(McpAddArgs {
+            name: "test-server".to_string(),
+            image: "test:latest".to_string(),
+            command: None,
+            envs: vec![],
+            volumes: vec![],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn mcp_add_with_all_options_runs_without_error() {
+        let cmd = McpCommand::Add(McpAddArgs {
+            name: "test-server".to_string(),
+            image: "test:latest".to_string(),
+            command: Some("serve".to_string()),
+            envs: vec!["KEY=VAL".to_string()],
+            volumes: vec!["/host:/container".to_string()],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn mcp_remove_runs_without_error() {
+        let cmd = McpCommand::Remove(McpRemoveArgs {
+            name: "test-server".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+}
+
 pub fn run(cmd: &McpCommand, _global: &super::GlobalOpts) -> crate::error::Result<()> {
     match cmd {
         McpCommand::List => {

@@ -128,6 +128,244 @@ fn generate_default_config(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::AgentType;
+
+    // --- generate_default_config tests ---
+
+    #[test]
+    fn default_config_claude_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_default_config(dir.path(), AgentType::Claude);
+
+        assert_eq!(config.agent.agent_type, AgentType::Claude);
+        assert!(config.auth.claude.is_some());
+        assert!(config.auth.codex.is_none());
+        assert!(config.modules.contains_key("node"));
+        assert!(config.modules.contains_key("git"));
+    }
+
+    #[test]
+    fn default_config_codex_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_default_config(dir.path(), AgentType::Codex);
+
+        assert_eq!(config.agent.agent_type, AgentType::Codex);
+        assert!(config.auth.claude.is_none());
+        assert!(config.auth.codex.is_some());
+    }
+
+    #[test]
+    fn default_config_both_agents() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_default_config(dir.path(), AgentType::Both);
+
+        assert_eq!(config.agent.agent_type, AgentType::Both);
+        assert!(config.auth.claude.is_some());
+        assert!(config.auth.codex.is_some());
+    }
+
+    #[test]
+    fn default_config_uses_dir_name_as_project_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected_name = dir.path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap()
+            .to_string();
+        let config = generate_default_config(dir.path(), AgentType::Claude);
+        assert_eq!(config.project.name, expected_name);
+    }
+
+    #[test]
+    fn default_config_node_version_is_22() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_default_config(dir.path(), AgentType::Claude);
+        let node = config.modules.get("node").unwrap();
+        if let toml::Value::Table(params) = node {
+            assert_eq!(params.get("version").unwrap().as_str().unwrap(), "22");
+        } else {
+            panic!("expected node module to be a table");
+        }
+    }
+
+    #[test]
+    fn default_config_agent_versions_are_latest() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_default_config(dir.path(), AgentType::Claude);
+        assert_eq!(config.agent.claude_version, "latest");
+        assert_eq!(config.agent.codex_version, "latest");
+    }
+
+    // --- generate_template_config tests ---
+
+    #[test]
+    fn template_config_claude() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_template_config(dir.path(), &InitTemplate::Claude);
+
+        assert_eq!(config.agent.agent_type, AgentType::Claude);
+        assert!(config.auth.claude.is_some());
+        assert!(config.auth.codex.is_none());
+        // Claude template includes services (node + git)
+        assert!(config.modules.contains_key("node"));
+        assert!(config.modules.contains_key("git"));
+    }
+
+    #[test]
+    fn template_config_codex() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_template_config(dir.path(), &InitTemplate::Codex);
+
+        assert_eq!(config.agent.agent_type, AgentType::Codex);
+        assert!(config.auth.claude.is_none());
+        assert!(config.auth.codex.is_some());
+    }
+
+    #[test]
+    fn template_config_both() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_template_config(dir.path(), &InitTemplate::Both);
+
+        assert_eq!(config.agent.agent_type, AgentType::Both);
+        assert!(config.auth.claude.is_some());
+        assert!(config.auth.codex.is_some());
+    }
+
+    #[test]
+    fn template_config_minimal_no_git() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = generate_template_config(dir.path(), &InitTemplate::Minimal);
+
+        assert_eq!(config.agent.agent_type, AgentType::Claude);
+        assert!(config.modules.contains_key("node"));
+        // Minimal does not include git
+        assert!(!config.modules.contains_key("git"));
+    }
+
+    // --- run() integration tests ---
+
+    #[test]
+    fn run_no_interactive_creates_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            template: None,
+            agent: None,
+            no_interactive: true,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+
+        let config_path = dir.path().join("cc-container.toml");
+        assert!(config_path.exists());
+
+        // Verify the config can be parsed back
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        let _config: crate::config::project::ProjectConfig = toml::from_str(&content).unwrap();
+    }
+
+    #[test]
+    fn run_with_template_creates_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            template: Some(InitTemplate::Minimal),
+            agent: None,
+            no_interactive: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+
+        let config_path = dir.path().join("cc-container.toml");
+        assert!(config_path.exists());
+    }
+
+    #[test]
+    fn run_errors_when_config_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("cc-container.toml");
+        std::fs::write(&config_path, "# existing").unwrap();
+
+        let args = InitArgs {
+            template: Some(InitTemplate::Claude),
+            agent: None,
+            no_interactive: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        let result = run(&args, &global);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("already exists"));
+    }
+
+    #[test]
+    fn run_no_interactive_with_codex_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            template: None,
+            agent: Some(AgentType::Codex),
+            no_interactive: true,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(dir.path().to_path_buf()),
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("cc-container.toml")).unwrap();
+        let config: crate::config::project::ProjectConfig = toml::from_str(&content).unwrap();
+        assert_eq!(config.agent.agent_type, AgentType::Codex);
+    }
+
+    #[test]
+    fn run_creates_target_directory_if_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let sub = dir.path().join("nested").join("project");
+
+        let args = InitArgs {
+            template: Some(InitTemplate::Claude),
+            agent: None,
+            no_interactive: false,
+        };
+        let global = super::super::GlobalOpts {
+            target_dir: Some(sub.clone()),
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        };
+
+        run(&args, &global).unwrap();
+        assert!(sub.join("cc-container.toml").exists());
+    }
+}
+
 fn generate_template_config(
     target: &std::path::Path,
     template: &InitTemplate,

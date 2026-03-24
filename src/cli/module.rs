@@ -54,6 +54,104 @@ pub struct ModuleCreateArgs {
     pub dir: Option<std::path::PathBuf>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn default_global() -> super::super::GlobalOpts {
+        super::super::GlobalOpts {
+            target_dir: None,
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        }
+    }
+
+    #[test]
+    fn module_list_runs_without_error() {
+        let cmd = ModuleCommand::List(ModuleListArgs { category: None });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_list_with_category_runs_without_error() {
+        let cmd = ModuleCommand::List(ModuleListArgs {
+            category: Some("lang".to_string()),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_list_with_nonexistent_category_runs_without_error() {
+        let cmd = ModuleCommand::List(ModuleListArgs {
+            category: Some("nonexistent".to_string()),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_info_known_module() {
+        let cmd = ModuleCommand::Info(ModuleInfoArgs {
+            name: "node".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_info_unknown_module_errors() {
+        let cmd = ModuleCommand::Info(ModuleInfoArgs {
+            name: "nonexistent-module".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("module not found"));
+    }
+
+    #[test]
+    fn module_add_runs_without_error() {
+        let cmd = ModuleCommand::Add(ModuleAddArgs {
+            names: vec!["node".to_string()],
+            params: vec![],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_remove_runs_without_error() {
+        let cmd = ModuleCommand::Remove(ModuleRemoveArgs {
+            names: vec!["git".to_string()],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_create_runs_without_error() {
+        let cmd = ModuleCommand::Create(ModuleCreateArgs {
+            name: "mymod".to_string(),
+            dir: None,
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn module_info_git_module() {
+        let cmd = ModuleCommand::Info(ModuleInfoArgs {
+            name: "git".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+}
+
 pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Result<()> {
     match cmd {
         ModuleCommand::List(args) => {
