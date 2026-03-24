@@ -78,7 +78,8 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
 fn all_ports_for_service(name: &str, config: &ServiceConfig) -> Vec<(u16, String)> {
     let mut ports = Vec::new();
 
-    if let Some(port) = config.port {
+    let port = config.port.or_else(|| default_port_for_service(name));
+    if let Some(port) = port {
         ports.push((port, name.to_string()));
     }
 
@@ -100,4 +101,36 @@ fn all_ports_for_service(name: &str, config: &ServiceConfig) -> Vec<(u16, String
     }
 
     ports
+}
+
+/// Returns the default port for a well-known service, matching the hardcoded
+/// defaults used in the corresponding Docker Compose templates.
+fn default_port_for_service(name: &str) -> Option<u16> {
+    match name {
+        // Databases
+        "postgres" => Some(5432),
+        "mysql" => Some(3306),
+        "mariadb" => Some(3306),
+        "mongodb" => Some(27017),
+        "cockroachdb" => Some(26257),
+        // Caches
+        "redis" => Some(6379),
+        "memcached" => Some(11211),
+        // Message brokers
+        "rabbitmq" => Some(5672),
+        "kafka" => Some(9092),
+        "nats" => Some(4222),
+        // Search engines
+        "elasticsearch" => Some(9200),
+        "meilisearch" => Some(7700),
+        "typesense" => Some(8108),
+        // Infrastructure
+        "minio" => Some(9000),
+        "prometheus" => Some(9090),
+        "grafana" => Some(3000),
+        // Reverse proxies
+        "traefik" => Some(80),
+        "nginx" => Some(80),
+        _ => None,
+    }
 }
