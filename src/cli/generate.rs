@@ -184,6 +184,6 @@ fn generate_mcp(
     output_dir: &std::path::Path,
     dry_run: bool,
 ) -> crate::error::Result<()> {
-    let content = crate::mcp::config::generate_mcp_json(config);
+    let content = crate::mcp::config::generate_mcp_json(config)?;
     write_output(output_dir, ".mcp.json", &content, dry_run)
 }

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use serde::Serialize;
 
 /// Generate .mcp.json content for Claude Code.
-pub fn generate_mcp_json(config: &ProjectConfig) -> String {
+pub fn generate_mcp_json(config: &ProjectConfig) -> crate::error::Result<String> {
     let mut mcp_servers: IndexMap<String, McpServerEntry> = IndexMap::new();
 
     for (name, mcp_config) in &config.mcp {
@@ -46,7 +46,7 @@ pub fn generate_mcp_json(config: &ProjectConfig) -> String {
         mcp_servers,
     };
 
-    serde_json::to_string_pretty(&mcp_json).unwrap_or_else(|_| "{}".to_string())
+    Ok(serde_json::to_string_pretty(&mcp_json)?)
 }
 
 #[derive(Serialize)]
