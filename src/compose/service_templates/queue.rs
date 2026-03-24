@@ -103,3 +103,192 @@ pub fn nats(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, St
 
     Ok((svc, agent_env))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::ServiceConfig;
+    use indexmap::IndexMap;
+
+    fn default_config() -> ServiceConfig {
+        ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_rabbitmq_defaults() {
+        let config = default_config();
+        let (svc, env) = rabbitmq(&config).unwrap();
+
+        assert_eq!(svc.image, Some("rabbitmq:3-management-alpine".to_string()));
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert_eq!(ports.len(), 2);
+                assert!(ports.contains(&"5672:5672".to_string()));
+                assert!(ports.contains(&"15672:15672".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "rabbitmqdata:/var/lib/rabbitmq"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("rabbitmq-diagnostics"));
+        }
+
+        assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        assert_eq!(env["RABBITMQ_URL"], "amqp://guest:guest@rabbitmq:5672");
+    }
+
+    #[test]
+    fn test_rabbitmq_custom_port() {
+        let config = ServiceConfig {
+            port: Some(15672),
+            ..default_config()
+        };
+        let (svc, _) = rabbitmq(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"15672:5672".to_string()));
+                assert!(ports.contains(&"15672:15672".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_kafka_defaults() {
+        let config = default_config();
+        let (svc, env) = kafka(&config).unwrap();
+
+        assert_eq!(svc.image, Some("redpandadata/redpanda:latest".to_string()));
+
+        match &svc.command {
+            Some(dct::Command::Simple(cmd)) => assert!(cmd.contains("redpanda start")),
+            _ => panic!("Expected simple command"),
+        }
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert_eq!(ports.len(), 2);
+                assert!(ports.contains(&"9092:9092".to_string()));
+                assert!(ports.contains(&"8081:8081".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "redpandadata:/var/lib/redpanda/data"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("rpk cluster health"));
+        }
+
+        assert_eq!(env["KAFKA_BROKERS"], "kafka:9092");
+    }
+
+    #[test]
+    fn test_kafka_custom_port() {
+        let config = ServiceConfig {
+            port: Some(19092),
+            ..default_config()
+        };
+        let (svc, _) = kafka(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"19092:9092".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_kafka_custom_version() {
+        let config = ServiceConfig {
+            version: Some("v23.3.2".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = kafka(&config).unwrap();
+        assert_eq!(svc.image, Some("redpandadata/redpanda:v23.3.2".to_string()));
+    }
+
+    #[test]
+    fn test_nats_defaults() {
+        let config = default_config();
+        let (svc, env) = nats(&config).unwrap();
+
+        assert_eq!(svc.image, Some("nats:latest".to_string()));
+
+        match &svc.command {
+            Some(dct::Command::Simple(cmd)) => {
+                assert!(cmd.contains("--jetstream"));
+                assert!(cmd.contains("--http_port 8222"));
+            }
+            _ => panic!("Expected simple command"),
+        }
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert_eq!(ports.len(), 2);
+                assert!(ports.contains(&"4222:4222".to_string()));
+                assert!(ports.contains(&"8222:8222".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+
+        assert!(svc.volumes.is_empty());
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("healthz"));
+        }
+
+        assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        assert_eq!(env["NATS_URL"], "nats://nats:4222");
+    }
+
+    #[test]
+    fn test_nats_custom_port() {
+        let config = ServiceConfig {
+            port: Some(14222),
+            ..default_config()
+        };
+        let (svc, _) = nats(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"14222:4222".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_queue_services_have_healthchecks() {
+        let config = default_config();
+        for builder in [rabbitmq, kafka, nats] {
+            let (svc, _) = builder(&config).unwrap();
+            assert!(svc.healthcheck.is_some());
+        }
+    }
+
+    #[test]
+    fn test_queue_services_have_restart_policy() {
+        let config = default_config();
+        for builder in [rabbitmq, kafka, nats] {
+            let (svc, _) = builder(&config).unwrap();
+            assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        }
+    }
+}

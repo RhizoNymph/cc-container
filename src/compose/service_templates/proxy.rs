@@ -57,3 +57,152 @@ pub fn nginx(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     Ok((svc, IndexMap::new()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::ServiceConfig;
+    use indexmap::IndexMap;
+
+    fn default_config() -> ServiceConfig {
+        ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_traefik_defaults() {
+        let config = default_config();
+        let (svc, env) = traefik(&config).unwrap();
+
+        assert_eq!(svc.image, Some("traefik:latest".to_string()));
+
+        match &svc.command {
+            Some(dct::Command::Simple(cmd)) => {
+                assert!(cmd.contains("--api.insecure=true"));
+                assert!(cmd.contains("--providers.docker=true"));
+                assert!(cmd.contains("--ping=true"));
+            }
+            _ => panic!("Expected simple command"),
+        }
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert_eq!(ports.len(), 2);
+                assert!(ports.contains(&"80:80".to_string()));
+                assert!(ports.contains(&"8080:8080".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => {
+                assert_eq!(v, "/var/run/docker.sock:/var/run/docker.sock:ro")
+            }
+            _ => panic!("Expected simple volume"),
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("traefik healthcheck"));
+        }
+
+        assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        assert!(env.is_empty());
+    }
+
+    #[test]
+    fn test_traefik_custom_port() {
+        let config = ServiceConfig {
+            port: Some(8000),
+            ..default_config()
+        };
+        let (svc, _) = traefik(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"8000:80".to_string()));
+                assert!(ports.contains(&"8080:8080".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_traefik_custom_version() {
+        let config = ServiceConfig {
+            version: Some("v3.0".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = traefik(&config).unwrap();
+        assert_eq!(svc.image, Some("traefik:v3.0".to_string()));
+    }
+
+    #[test]
+    fn test_nginx_defaults() {
+        let config = default_config();
+        let (svc, env) = nginx(&config).unwrap();
+
+        assert_eq!(svc.image, Some("nginx:alpine".to_string()));
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["80:80"]),
+            _ => panic!("Expected short ports"),
+        }
+
+        assert!(svc.volumes.is_empty());
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("localhost:80"));
+        }
+
+        assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        assert!(env.is_empty());
+    }
+
+    #[test]
+    fn test_nginx_custom_port() {
+        let config = ServiceConfig {
+            port: Some(8080),
+            ..default_config()
+        };
+        let (svc, _) = nginx(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["8080:80"]),
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_nginx_custom_version() {
+        let config = ServiceConfig {
+            version: Some("1.25".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = nginx(&config).unwrap();
+        assert_eq!(svc.image, Some("nginx:1.25".to_string()));
+    }
+
+    #[test]
+    fn test_proxy_services_have_healthchecks() {
+        let config = default_config();
+        for builder in [traefik, nginx] {
+            let (svc, _) = builder(&config).unwrap();
+            assert!(svc.healthcheck.is_some());
+            let hc = svc.healthcheck.unwrap();
+            assert_eq!(hc.retries, 5);
+        }
+    }
+
+    #[test]
+    fn test_proxy_services_return_empty_env() {
+        let config = default_config();
+        for builder in [traefik, nginx] {
+            let (_, env) = builder(&config).unwrap();
+            assert!(env.is_empty());
+        }
+    }
+}

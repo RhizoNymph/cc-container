@@ -161,3 +161,470 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
         ..Default::default()
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+    use indexmap::IndexMap;
+
+    /// Helper: build a minimal valid ProjectConfig for testing.
+    fn minimal_config() -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type: AgentType::Claude,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig::default(),
+            modules: IndexMap::new(),
+            auth: AuthConfig::default(),
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+        }
+    }
+
+    #[test]
+    fn test_generate_minimal_config() {
+        let config = minimal_config();
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Should have exactly one agent service
+        assert_eq!(services.len(), 1);
+        assert!(services.contains_key("agent"));
+    }
+
+    #[test]
+    fn test_generate_with_single_service() {
+        let mut config = minimal_config();
+        config.services.insert(
+            "postgres".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: Some("15".to_string()),
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Should have postgres + agent
+        assert_eq!(services.len(), 2);
+        assert!(services.contains_key("postgres"));
+        assert!(services.contains_key("agent"));
+
+        // Agent should depend on postgres
+        let agent = services.get("agent").unwrap().as_ref().unwrap();
+        if let dct::DependsOnOptions::Conditional(deps) = &agent.depends_on {
+            assert!(deps.contains_key("postgres"));
+        } else {
+            panic!("Expected conditional depends_on");
+        }
+
+        // Top-level volumes should contain pgdata-devdb (default db name)
+        let vols = &compose.volumes.0;
+        assert!(vols.contains_key("pgdata-devdb"));
+    }
+
+    #[test]
+    fn test_generate_with_disabled_service() {
+        let mut config = minimal_config();
+        config.services.insert(
+            "redis".to_string(),
+            ServiceConfig {
+                enabled: false,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Disabled service should not appear
+        assert_eq!(services.len(), 1);
+        assert!(!services.contains_key("redis"));
+        assert!(services.contains_key("agent"));
+    }
+
+    #[test]
+    fn test_generate_with_multiple_services() {
+        let mut config = minimal_config();
+        config.services.insert(
+            "redis".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+        config.services.insert(
+            "memcached".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Should have redis + memcached + agent
+        assert_eq!(services.len(), 3);
+        assert!(services.contains_key("redis"));
+        assert!(services.contains_key("memcached"));
+        assert!(services.contains_key("agent"));
+
+        // Agent should depend on both
+        let agent = services.get("agent").unwrap().as_ref().unwrap();
+        if let dct::DependsOnOptions::Conditional(deps) = &agent.depends_on {
+            assert!(deps.contains_key("redis"));
+            assert!(deps.contains_key("memcached"));
+        } else {
+            panic!("Expected conditional depends_on");
+        }
+    }
+
+    #[test]
+    fn test_generate_both_agent_types() {
+        let mut config = minimal_config();
+        config.agent.agent_type = AgentType::Both;
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Should have two agent services
+        assert!(services.contains_key("agent-claude"));
+        assert!(services.contains_key("agent-codex"));
+        assert!(!services.contains_key("agent"));
+    }
+
+    #[test]
+    fn test_generate_codex_agent() {
+        let mut config = minimal_config();
+        config.agent.agent_type = AgentType::Codex;
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        assert_eq!(services.len(), 1);
+        assert!(services.contains_key("agent"));
+
+        // Agent service should use simple build step (Dockerfile)
+        let agent = services.get("agent").unwrap().as_ref().unwrap();
+        match &agent.build_ {
+            Some(dct::BuildStep::Simple(ctx)) => assert_eq!(ctx, "."),
+            _ => panic!("Expected simple build step for single agent"),
+        }
+    }
+
+    #[test]
+    fn test_generate_with_mcp_service() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "github".to_string(),
+            McpServerConfig {
+                image: "ghcr.io/modelcontextprotocol/github:latest".to_string(),
+                command: Some(vec!["node".to_string(), "server.js".to_string()]),
+                env: vec!["GITHUB_TOKEN".to_string()],
+                volumes: vec!["/tmp/data:/data".to_string()],
+                port: Some(3000),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // MCP service should be named "mcp-github"
+        assert!(services.contains_key("mcp-github"));
+
+        let mcp_svc = services.get("mcp-github").unwrap().as_ref().unwrap();
+        assert_eq!(
+            mcp_svc.image,
+            Some("ghcr.io/modelcontextprotocol/github:latest".to_string())
+        );
+        assert_eq!(mcp_svc.restart, Some("unless-stopped".to_string()));
+
+        // Should have env var referencing ${GITHUB_TOKEN}
+        if let dct::Environment::KvPair(env) = &mcp_svc.environment {
+            assert!(env.contains_key("GITHUB_TOKEN"));
+        } else {
+            panic!("Expected KvPair environment");
+        }
+
+        // Should have volume
+        assert!(!mcp_svc.volumes.is_empty());
+
+        // Should have ports
+        match &mcp_svc.ports {
+            dct::Ports::Short(ports) => assert!(ports.contains(&"3000:3000".to_string())),
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_generate_mcp_without_port() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "test".to_string(),
+            McpServerConfig {
+                image: "test-image:latest".to_string(),
+                command: None,
+                env: vec![],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+        let mcp_svc = services.get("mcp-test").unwrap().as_ref().unwrap();
+
+        // Port should be an empty short list
+        match &mcp_svc.ports {
+            dct::Ports::Short(ports) => assert!(ports.is_empty()),
+            _ => panic!("Expected empty short ports"),
+        }
+    }
+
+    #[test]
+    fn test_generate_multiple_database_urls() {
+        let mut config = minimal_config();
+        config.services.insert(
+            "postgres".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+        config.services.insert(
+            "mysql".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        // Both postgres and mysql set DATABASE_URL; generator should handle the conflict
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        assert!(services.contains_key("postgres"));
+        assert!(services.contains_key("mysql"));
+
+        // The agent should still be generated despite the conflict
+        let agent = services.get("agent").unwrap().as_ref().unwrap();
+        if let dct::Environment::KvPair(env) = &agent.environment {
+            // Should have DATABASE_URL set to the first one
+            assert!(env.contains_key("DATABASE_URL"));
+            // Should also have service-specific URLs
+            assert!(env.contains_key("POSTGRES_URL") || env.contains_key("MYSQL_URL"));
+        } else {
+            panic!("Expected KvPair environment");
+        }
+    }
+
+    #[test]
+    fn test_generate_user_defined_volumes() {
+        let mut config = minimal_config();
+        config.volumes.insert(
+            "mydata".to_string(),
+            VolumeMount {
+                target: "/data".to_string(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let vols = &compose.volumes.0;
+        assert!(vols.contains_key("mydata"));
+    }
+
+    #[test]
+    fn test_named_volumes_collected_from_services() {
+        let mut config = minimal_config();
+        config.services.insert(
+            "redis".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let vols = &compose.volumes.0;
+
+        // Redis uses "redisdata:/data" so "redisdata" should be in top-level volumes
+        assert!(vols.contains_key("redisdata"));
+    }
+
+    #[test]
+    fn test_path_volumes_not_in_top_level() {
+        // Volumes starting with . / ~ or containing $ should NOT be in top-level volumes
+        let config = minimal_config();
+        let compose = generate(&config).unwrap();
+        let vols = &compose.volumes.0;
+
+        // Workspace mount is ./:... which should not be in top-level volumes
+        for key in vols.keys() {
+            assert!(!key.starts_with('.'));
+            assert!(!key.starts_with('/'));
+            assert!(!key.starts_with('~'));
+            assert!(!key.contains('$'));
+        }
+    }
+
+    #[test]
+    fn test_generate_both_agents_with_services() {
+        let mut config = minimal_config();
+        config.agent.agent_type = AgentType::Both;
+        config.services.insert(
+            "redis".to_string(),
+            ServiceConfig {
+                enabled: true,
+                version: None,
+                port: None,
+                extra: IndexMap::new(),
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Both agents + redis
+        assert!(services.contains_key("agent-claude"));
+        assert!(services.contains_key("agent-codex"));
+        assert!(services.contains_key("redis"));
+
+        // Both agents should depend on redis
+        for agent_name in &["agent-claude", "agent-codex"] {
+            let agent = services.get(*agent_name).unwrap().as_ref().unwrap();
+            if let dct::DependsOnOptions::Conditional(deps) = &agent.depends_on {
+                assert!(deps.contains_key("redis"));
+            } else {
+                panic!("{} should have conditional depends_on", agent_name);
+            }
+        }
+
+        // Both agents should have REDIS_URL env
+        for agent_name in &["agent-claude", "agent-codex"] {
+            let agent = services.get(*agent_name).unwrap().as_ref().unwrap();
+            if let dct::Environment::KvPair(env) = &agent.environment {
+                assert!(env.contains_key("REDIS_URL"), "{} missing REDIS_URL", agent_name);
+            } else {
+                panic!("Expected KvPair environment for {}", agent_name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_both_agents_use_advanced_build_step() {
+        let mut config = minimal_config();
+        config.agent.agent_type = AgentType::Both;
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Claude agent should use Dockerfile.claude
+        let claude = services.get("agent-claude").unwrap().as_ref().unwrap();
+        match &claude.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, ".");
+                assert_eq!(adv.dockerfile, Some("Dockerfile.claude".to_string()));
+            }
+            _ => panic!("Expected advanced build step for agent-claude"),
+        }
+
+        // Codex agent should use Dockerfile.codex
+        let codex = services.get("agent-codex").unwrap().as_ref().unwrap();
+        match &codex.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, ".");
+                assert_eq!(adv.dockerfile, Some("Dockerfile.codex".to_string()));
+            }
+            _ => panic!("Expected advanced build step for agent-codex"),
+        }
+    }
+
+    #[test]
+    fn test_generate_empty_services_list() {
+        let config = minimal_config();
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // Only agent service
+        assert_eq!(services.len(), 1);
+    }
+
+    #[test]
+    fn test_generate_all_service_types() {
+        let mut config = minimal_config();
+        let service_names = vec![
+            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
+            "redis", "memcached", "rabbitmq", "kafka", "nats",
+            "elasticsearch", "meilisearch", "typesense", "minio",
+            "prometheus", "grafana", "traefik", "nginx",
+        ];
+
+        for name in &service_names {
+            config.services.insert(
+                name.to_string(),
+                ServiceConfig {
+                    enabled: true,
+                    version: None,
+                    port: None,
+                    extra: IndexMap::new(),
+                },
+            );
+        }
+
+        let compose = generate(&config).unwrap();
+        let services = &compose.services.0;
+
+        // All services + agent
+        assert_eq!(services.len(), service_names.len() + 1);
+        for name in &service_names {
+            assert!(services.contains_key(*name), "Missing service: {}", name);
+        }
+    }
+
+    #[test]
+    fn test_mcp_service_without_command() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "test".to_string(),
+            McpServerConfig {
+                image: "test:latest".to_string(),
+                command: None,
+                env: vec![],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let mcp = compose.services.0.get("mcp-test").unwrap().as_ref().unwrap();
+        assert!(mcp.command.is_none());
+    }
+}
