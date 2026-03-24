@@ -93,11 +93,11 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
 
     if ok {
         eprintln!("\nAll checks passed.");
+        Ok(())
     } else {
         eprintln!("\nSome checks failed.");
+        Err(crate::error::Error::Other("some checks failed".to_string()))
     }
-
-    Ok(())
 }
 
 fn check_oauth_credentials(
