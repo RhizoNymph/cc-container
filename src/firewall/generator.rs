@@ -2,6 +2,27 @@ use crate::config::project::{AgentType, ProjectConfig};
 
 use super::domains;
 
+/// Returns true if `s` looks like a valid domain name (only [a-zA-Z0-9.-], has a dot, doesn't start/end with dot/hyphen).
+fn is_valid_domain(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 253
+        && s.contains('.')
+        && !s.starts_with('.')
+        && !s.starts_with('-')
+        && !s.ends_with('.')
+        && !s.ends_with('-')
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+}
+
+/// Returns true if `s` looks like a valid CIDR (only [0-9./]).
+fn is_valid_cidr(s: &str) -> bool {
+    !s.is_empty()
+        && s.contains('/')
+        && s.chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '/')
+}
+
 /// Generate the contents of init-firewall.sh.
 pub fn generate(config: &ProjectConfig) -> String {
     let mut domains: Vec<String> = Vec::new();
@@ -27,6 +48,10 @@ pub fn generate(config: &ProjectConfig) -> String {
 
     // Add user-configured domains
     for d in &config.firewall.allowed_domains {
+        if !is_valid_domain(d) {
+            eprintln!("warning: skipping invalid domain in firewall config: {d}");
+            continue;
+        }
         if !domains.contains(d) {
             domains.push(d.clone());
         }
@@ -99,6 +124,10 @@ pub fn generate(config: &ProjectConfig) -> String {
     if !cidrs.is_empty() {
         script.push_str("# Allow additional CIDR ranges\n");
         for cidr in cidrs {
+            if !is_valid_cidr(cidr) {
+                eprintln!("warning: skipping invalid CIDR in firewall config: {cidr}");
+                continue;
+            }
             script.push_str(&format!(
                 "iptables -A OUTPUT -d {cidr} -j ACCEPT\n"
             ));
@@ -113,6 +142,7 @@ pub fn generate(config: &ProjectConfig) -> String {
 
     // Allow Docker network (compose services communicate via internal network)
     script.push_str("# Allow Docker internal network (compose services)\n");
+    script.push_str("iptables -A OUTPUT -d 10.0.0.0/8 -j ACCEPT\n");
     script.push_str("iptables -A OUTPUT -d 172.16.0.0/12 -j ACCEPT\n");
     script.push_str("iptables -A OUTPUT -d 192.168.0.0/16 -j ACCEPT\n\n");
 
