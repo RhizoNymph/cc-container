@@ -46,3 +46,117 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     Ok((svc, agent_env))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::ServiceConfig;
+    use indexmap::IndexMap;
+
+    fn default_config() -> ServiceConfig {
+        ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_minio_defaults() {
+        let config = default_config();
+        let (svc, env) = minio(&config).unwrap();
+
+        assert_eq!(svc.image, Some("minio/minio:latest".to_string()));
+
+        match &svc.command {
+            Some(dct::Command::Simple(cmd)) => {
+                assert!(cmd.contains("server /data"));
+                assert!(cmd.contains("--console-address :9001"));
+            }
+            _ => panic!("Expected simple command"),
+        }
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert_eq!(ports.len(), 2);
+                assert!(ports.contains(&"9000:9000".to_string()));
+                assert!(ports.contains(&"9001:9001".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+
+        if let dct::Environment::KvPair(e) = &svc.environment {
+            assert!(e.contains_key("MINIO_ROOT_USER"));
+            assert!(e.contains_key("MINIO_ROOT_PASSWORD"));
+        } else {
+            panic!("Expected KvPair environment");
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "miniodata:/data"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("mc ready local"));
+        }
+
+        assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+
+        assert_eq!(env["S3_ENDPOINT"], "http://minio:9000");
+        assert!(env.contains_key("S3_ACCESS_KEY_ID"));
+        assert!(env.contains_key("S3_SECRET_ACCESS_KEY"));
+    }
+
+    #[test]
+    fn test_minio_custom_port() {
+        let config = ServiceConfig {
+            port: Some(19000),
+            ..default_config()
+        };
+        let (svc, _) = minio(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"19000:9000".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_minio_custom_console_port() {
+        let mut extra = IndexMap::new();
+        extra.insert("console_port".to_string(), toml::Value::Integer(19001));
+
+        let config = ServiceConfig {
+            extra,
+            ..default_config()
+        };
+        let (svc, _) = minio(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => {
+                assert!(ports.contains(&"19001:9001".to_string()));
+            }
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_minio_custom_version() {
+        let config = ServiceConfig {
+            version: Some("RELEASE.2024-01-01".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = minio(&config).unwrap();
+        assert_eq!(svc.image, Some("minio/minio:RELEASE.2024-01-01".to_string()));
+    }
+
+    #[test]
+    fn test_minio_agent_env_has_three_keys() {
+        let config = default_config();
+        let (_, env) = minio(&config).unwrap();
+        assert_eq!(env.len(), 3);
+    }
+}

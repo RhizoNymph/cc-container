@@ -108,3 +108,204 @@ pub fn typesense(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
 
     Ok((svc, agent_env))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::ServiceConfig;
+    use indexmap::IndexMap;
+
+    fn default_config() -> ServiceConfig {
+        ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_elasticsearch_defaults() {
+        let config = default_config();
+        let (svc, env) = elasticsearch(&config).unwrap();
+
+        assert_eq!(
+            svc.image,
+            Some("docker.elastic.co/elasticsearch/elasticsearch:8".to_string())
+        );
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["9200:9200"]),
+            _ => panic!("Expected short ports"),
+        }
+
+        if let dct::Environment::KvPair(e) = &svc.environment {
+            assert!(e.contains_key("discovery.type"));
+            assert!(e.contains_key("xpack.security.enabled"));
+            assert!(e.contains_key("ES_JAVA_OPTS"));
+        } else {
+            panic!("Expected KvPair environment");
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "esdata:/usr/share/elasticsearch/data"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        assert_eq!(hc.interval, Some("15s".to_string()));
+        assert_eq!(hc.timeout, Some("10s".to_string()));
+
+        assert_eq!(env["ELASTICSEARCH_URL"], "http://elasticsearch:9200");
+    }
+
+    #[test]
+    fn test_elasticsearch_custom_version() {
+        let config = ServiceConfig {
+            version: Some("7.17".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = elasticsearch(&config).unwrap();
+        assert_eq!(
+            svc.image,
+            Some("docker.elastic.co/elasticsearch/elasticsearch:7.17".to_string())
+        );
+    }
+
+    #[test]
+    fn test_elasticsearch_custom_port() {
+        let config = ServiceConfig {
+            port: Some(19200),
+            ..default_config()
+        };
+        let (svc, _) = elasticsearch(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["19200:9200"]),
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_meilisearch_defaults() {
+        let config = default_config();
+        let (svc, env) = meilisearch(&config).unwrap();
+
+        assert_eq!(svc.image, Some("getmeili/meilisearch:latest".to_string()));
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["7700:7700"]),
+            _ => panic!("Expected short ports"),
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "meilidata:/meili_data"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        if let dct::Environment::KvPair(e) = &svc.environment {
+            assert!(e.contains_key("MEILI_ENV"));
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("7700/health"));
+        }
+
+        assert_eq!(env["MEILISEARCH_URL"], "http://meilisearch:7700");
+    }
+
+    #[test]
+    fn test_meilisearch_custom_port() {
+        let config = ServiceConfig {
+            port: Some(17700),
+            ..default_config()
+        };
+        let (svc, _) = meilisearch(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["17700:7700"]),
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_typesense_defaults() {
+        let config = default_config();
+        let (svc, env) = typesense(&config).unwrap();
+
+        assert_eq!(svc.image, Some("typesense/typesense:27.1".to_string()));
+
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["8108:8108"]),
+            _ => panic!("Expected short ports"),
+        }
+
+        match &svc.volumes[0] {
+            dct::Volumes::Simple(v) => assert_eq!(v, "typesensedata:/data"),
+            _ => panic!("Expected simple volume"),
+        }
+
+        if let dct::Environment::KvPair(e) = &svc.environment {
+            assert!(e.contains_key("TYPESENSE_API_KEY"));
+            assert!(e.contains_key("TYPESENSE_DATA_DIR"));
+        }
+
+        let hc = svc.healthcheck.as_ref().unwrap();
+        if let Some(dct::HealthcheckTest::Single(cmd)) = &hc.test {
+            assert!(cmd.contains("8108/health"));
+        }
+
+        assert_eq!(env["TYPESENSE_URL"], "http://typesense:8108");
+    }
+
+    #[test]
+    fn test_typesense_custom_version() {
+        let config = ServiceConfig {
+            version: Some("26.0".to_string()),
+            ..default_config()
+        };
+        let (svc, _) = typesense(&config).unwrap();
+        assert_eq!(svc.image, Some("typesense/typesense:26.0".to_string()));
+    }
+
+    #[test]
+    fn test_typesense_custom_port() {
+        let config = ServiceConfig {
+            port: Some(18108),
+            ..default_config()
+        };
+        let (svc, _) = typesense(&config).unwrap();
+        match &svc.ports {
+            dct::Ports::Short(ports) => assert_eq!(ports, &["18108:8108"]),
+            _ => panic!("Expected short ports"),
+        }
+    }
+
+    #[test]
+    fn test_search_services_have_healthchecks() {
+        let config = default_config();
+        for builder in [elasticsearch, meilisearch, typesense] {
+            let (svc, _) = builder(&config).unwrap();
+            assert!(svc.healthcheck.is_some());
+            let hc = svc.healthcheck.unwrap();
+            assert_eq!(hc.retries, 5);
+        }
+    }
+
+    #[test]
+    fn test_search_services_have_restart_policy() {
+        let config = default_config();
+        for builder in [elasticsearch, meilisearch, typesense] {
+            let (svc, _) = builder(&config).unwrap();
+            assert_eq!(svc.restart, Some("unless-stopped".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_search_services_have_volumes() {
+        let config = default_config();
+        for builder in [elasticsearch, meilisearch, typesense] {
+            let (svc, _) = builder(&config).unwrap();
+            assert!(!svc.volumes.is_empty());
+        }
+    }
+}

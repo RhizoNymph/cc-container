@@ -96,3 +96,160 @@ pub fn list_all() -> Vec<ServiceTemplateInfo> {
         ServiceTemplateInfo { name: "nginx", description: "Nginx reverse proxy", category: ServiceCategory::Proxy, default_port: 80 },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::ServiceConfig;
+    use indexmap::IndexMap;
+
+    fn default_service_config() -> ServiceConfig {
+        ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_list_all_returns_18_services() {
+        let all = list_all();
+        assert_eq!(all.len(), 18);
+    }
+
+    #[test]
+    fn test_list_all_unique_names() {
+        let all = list_all();
+        let names: Vec<&str> = all.iter().map(|s| s.name).collect();
+        let mut unique_names = names.clone();
+        unique_names.sort();
+        unique_names.dedup();
+        assert_eq!(names.len(), unique_names.len(), "Service names must be unique");
+    }
+
+    #[test]
+    fn test_list_all_categories() {
+        let all = list_all();
+        let categories: Vec<ServiceCategory> = all.iter().map(|s| s.category).collect();
+
+        assert!(categories.contains(&ServiceCategory::Database));
+        assert!(categories.contains(&ServiceCategory::Cache));
+        assert!(categories.contains(&ServiceCategory::Queue));
+        assert!(categories.contains(&ServiceCategory::Search));
+        assert!(categories.contains(&ServiceCategory::Storage));
+        assert!(categories.contains(&ServiceCategory::Monitoring));
+        assert!(categories.contains(&ServiceCategory::Proxy));
+    }
+
+    #[test]
+    fn test_list_all_database_count() {
+        let all = list_all();
+        let db_count = all.iter().filter(|s| s.category == ServiceCategory::Database).count();
+        assert_eq!(db_count, 5);
+    }
+
+    #[test]
+    fn test_list_all_cache_count() {
+        let all = list_all();
+        let count = all.iter().filter(|s| s.category == ServiceCategory::Cache).count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_list_all_queue_count() {
+        let all = list_all();
+        let count = all.iter().filter(|s| s.category == ServiceCategory::Queue).count();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_list_all_search_count() {
+        let all = list_all();
+        let count = all.iter().filter(|s| s.category == ServiceCategory::Search).count();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_build_service_unknown() {
+        let config = default_service_config();
+        let result = build_service("nonexistent", &config);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            Error::ServiceNotFound(name) => assert_eq!(name, "nonexistent"),
+            e => panic!("Expected ServiceNotFound, got: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_build_service_all_known_services() {
+        let config = default_service_config();
+        let names = [
+            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
+            "redis", "memcached", "rabbitmq", "kafka", "nats",
+            "elasticsearch", "meilisearch", "typesense", "minio",
+            "prometheus", "grafana", "traefik", "nginx",
+        ];
+
+        for name in &names {
+            let result = build_service(name, &config);
+            assert!(result.is_ok(), "Failed to build service: {}", name);
+        }
+    }
+
+    #[test]
+    fn test_build_service_returns_service_and_env() {
+        let config = default_service_config();
+        let (svc, env) = build_service("postgres", &config).unwrap();
+
+        assert!(svc.image.is_some());
+        assert!(env.contains_key("DATABASE_URL"));
+    }
+
+    #[test]
+    fn test_service_category_display() {
+        assert_eq!(format!("{}", ServiceCategory::Database), "database");
+        assert_eq!(format!("{}", ServiceCategory::Cache), "cache");
+        assert_eq!(format!("{}", ServiceCategory::Queue), "queue");
+        assert_eq!(format!("{}", ServiceCategory::Search), "search");
+        assert_eq!(format!("{}", ServiceCategory::Storage), "storage");
+        assert_eq!(format!("{}", ServiceCategory::Monitoring), "monitoring");
+        assert_eq!(format!("{}", ServiceCategory::Proxy), "proxy");
+    }
+
+    #[test]
+    fn test_default_ports_match_well_known() {
+        let all = list_all();
+        let find = |name: &str| all.iter().find(|s| s.name == name).unwrap().default_port;
+
+        assert_eq!(find("postgres"), 5432);
+        assert_eq!(find("mysql"), 3306);
+        assert_eq!(find("mariadb"), 3306);
+        assert_eq!(find("mongodb"), 27017);
+        assert_eq!(find("cockroachdb"), 26257);
+        assert_eq!(find("redis"), 6379);
+        assert_eq!(find("memcached"), 11211);
+        assert_eq!(find("rabbitmq"), 5672);
+        assert_eq!(find("kafka"), 9092);
+        assert_eq!(find("nats"), 4222);
+        assert_eq!(find("elasticsearch"), 9200);
+        assert_eq!(find("meilisearch"), 7700);
+        assert_eq!(find("typesense"), 8108);
+        assert_eq!(find("minio"), 9000);
+        assert_eq!(find("prometheus"), 9090);
+        assert_eq!(find("grafana"), 3000);
+        assert_eq!(find("traefik"), 80);
+        assert_eq!(find("nginx"), 80);
+    }
+
+    #[test]
+    fn test_proxy_services_return_empty_agent_env() {
+        let config = default_service_config();
+
+        let (_, traefik_env) = build_service("traefik", &config).unwrap();
+        assert!(traefik_env.is_empty());
+
+        let (_, nginx_env) = build_service("nginx", &config).unwrap();
+        assert!(nginx_env.is_empty());
+    }
+}
