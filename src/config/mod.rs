@@ -55,3 +55,152 @@ pub fn load_effective_config(path: &Path) -> Result<ProjectConfig> {
 
     Ok(config)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    const MINIMAL_CONFIG: &str = r#"
+[project]
+name = "test-project"
+[agent]
+type = "claude"
+"#;
+
+    // ───────────────────── load_project_config ─────────────────────
+
+    #[test]
+    fn load_project_config_from_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cc-container.toml");
+        std::fs::write(&path, MINIMAL_CONFIG).unwrap();
+        let config = load_project_config(&path).unwrap();
+        assert_eq!(config.project.name, "test-project");
+    }
+
+    #[test]
+    fn load_project_config_not_found() {
+        let path = std::path::Path::new("/nonexistent/cc-container.toml");
+        let err = load_project_config(path).unwrap_err();
+        match err {
+            Error::ConfigNotFound(p) => assert_eq!(p, path),
+            other => panic!("Expected ConfigNotFound, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn load_project_config_invalid_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.toml");
+        std::fs::write(&path, "this is not valid toml {{{{").unwrap();
+        let err = load_project_config(&path).unwrap_err();
+        assert!(matches!(err, Error::ConfigParse(_)));
+    }
+
+    #[test]
+    fn load_project_config_valid_toml_but_wrong_schema() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wrong.toml");
+        std::fs::write(&path, "[something]\nkey = \"value\"\n").unwrap();
+        let err = load_project_config(&path).unwrap_err();
+        assert!(matches!(err, Error::ConfigParse(_)));
+    }
+
+    #[test]
+    fn load_project_config_full() {
+        let toml_str = r#"
+[project]
+name = "full"
+description = "A full config"
+
+[agent]
+type = "both"
+claude_version = "1.0"
+codex_version = "2.0"
+
+[image]
+base = "debian"
+base_version = "bookworm"
+platform = "linux/arm64"
+tag = "v1"
+user = "coder"
+shell = "zsh"
+
+[modules]
+nodejs = { version = "20" }
+
+[auth.claude]
+method = "api-key"
+[auth.codex]
+method = "oauth"
+
+[firewall]
+enabled = true
+allowed_domains = ["github.com"]
+allowed_cidrs = ["10.0.0.0/8"]
+
+[workspace]
+mount_path = "/src"
+
+[services.postgres]
+enabled = true
+version = "16"
+port = 5432
+
+[runtime]
+cap_add = ["NET_ADMIN"]
+memory_limit = "4g"
+"#;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cc-container.toml");
+        std::fs::write(&path, toml_str).unwrap();
+        let config = load_project_config(&path).unwrap();
+        assert_eq!(config.project.name, "full");
+        assert_eq!(config.image.base, project::BaseOs::Debian);
+        assert!(config.auth.claude.is_some());
+        assert!(config.firewall.enabled);
+    }
+
+    // ───────────────────── load_effective_config ─────────────────────
+
+    #[test]
+    fn load_effective_config_not_found() {
+        let path = std::path::Path::new("/nonexistent/cc-container.toml");
+        let err = load_effective_config(path).unwrap_err();
+        assert!(matches!(err, Error::ConfigNotFound(_)));
+    }
+
+    #[test]
+    fn load_effective_config_loads_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cc-container.toml");
+        std::fs::write(&path, MINIMAL_CONFIG).unwrap();
+        // This will attempt to load user config from the real home directory.
+        // Even if user config exists, the project config should be loaded correctly.
+        let config = load_effective_config(&path).unwrap();
+        assert_eq!(config.project.name, "test-project");
+    }
+
+    // ───────────────────── load_user_config ─────────────────────
+
+    #[test]
+    fn load_user_config_returns_option() {
+        // We can't control the filesystem easily here, but we can at least
+        // verify it doesn't panic and returns Ok.
+        let result = load_user_config();
+        assert!(result.is_ok());
+    }
+
+    // ───────────────────── Empty file ─────────────────────
+
+    #[test]
+    fn load_project_config_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(b"").unwrap();
+        let err = load_project_config(&path).unwrap_err();
+        assert!(matches!(err, Error::ConfigParse(_)));
+    }
+}

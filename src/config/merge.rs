@@ -121,3 +121,531 @@ pub fn merge_configs(
                 }
         }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::{BaseOs, ProjectConfig, ShellType};
+    use crate::config::user::{UserConfig, UserDefaults};
+    use indexmap::IndexMap;
+
+    /// Helper: parse a minimal project config from TOML, returning both
+    /// the deserialized struct and the raw TOML value for the [image] table.
+    fn parse_project(toml_str: &str) -> (ProjectConfig, Option<toml::Value>) {
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        let raw: toml::Value = toml::from_str(toml_str).unwrap();
+        let raw_image = raw.get("image").cloned();
+        (config, raw_image)
+    }
+
+    const MINIMAL: &str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+"#;
+
+    // ───────────────────── Base OS merging ─────────────────────
+
+    #[test]
+    fn merge_base_os_from_user_when_project_omits() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base: Some(BaseOs::Alpine),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base, BaseOs::Alpine);
+    }
+
+    #[test]
+    fn project_base_os_takes_precedence() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+base = "debian"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base: Some(BaseOs::Alpine),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base, BaseOs::Debian);
+    }
+
+    // ───────────────────── Shell merging ─────────────────────
+
+    #[test]
+    fn merge_shell_from_user_when_project_omits() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                shell: Some(ShellType::Zsh),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.shell, ShellType::Zsh);
+    }
+
+    #[test]
+    fn project_shell_takes_precedence() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+shell = "sh"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                shell: Some(ShellType::Zsh),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.shell, ShellType::Sh);
+    }
+
+    // ───────────────────── Platform merging ─────────────────────
+
+    #[test]
+    fn merge_platform_from_user_when_project_omits() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                platform: Some("linux/arm64".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.platform, "linux/arm64");
+    }
+
+    #[test]
+    fn project_platform_takes_precedence() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+platform = "linux/amd64"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                platform: Some("linux/arm64".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.platform, "linux/amd64");
+    }
+
+    // ───────────────────── base_version merging ─────────────────────
+
+    #[test]
+    fn merge_base_version_when_both_from_user() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base: Some(BaseOs::Alpine),
+                base_version: Some("3.21".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base, BaseOs::Alpine);
+        assert_eq!(config.image.base_version.as_deref(), Some("3.21"));
+    }
+
+    #[test]
+    fn no_merge_base_version_when_project_sets_base() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+base = "debian"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base_version: Some("3.21".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert!(config.image.base_version.is_none());
+    }
+
+    #[test]
+    fn no_merge_base_version_when_user_base_differs_from_project() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+base = "ubuntu"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base: Some(BaseOs::Alpine),
+                base_version: Some("3.21".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert!(config.image.base_version.is_none());
+    }
+
+    #[test]
+    fn project_base_version_takes_precedence() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+base_version = "22.04"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base_version: Some("24.04".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base_version.as_deref(), Some("22.04"));
+    }
+
+    #[test]
+    fn merge_base_version_when_user_base_none_and_project_omits_both() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base_version: Some("22.04".to_string()),
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base_version.as_deref(), Some("22.04"));
+    }
+
+    // ───────────────────── Module merging ─────────────────────
+
+    #[test]
+    fn merge_new_module_from_user() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "nodejs".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("version".to_string(), toml::Value::String("20".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert!(config.modules.contains_key("nodejs"));
+        let node = config.modules["nodejs"].as_table().unwrap();
+        assert_eq!(node["version"].as_str(), Some("20"));
+    }
+
+    #[test]
+    fn project_module_params_take_precedence() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[modules]
+nodejs = { version = "18" }
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "nodejs".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("version".to_string(), toml::Value::String("20".to_string()));
+                t.insert("global_packages".to_string(), toml::Value::String("typescript".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        let node = config.modules["nodejs"].as_table().unwrap();
+        assert_eq!(node["version"].as_str(), Some("18"));
+        assert_eq!(node["global_packages"].as_str(), Some("typescript"));
+    }
+
+    #[test]
+    fn auto_managed_modules_not_merged() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        for name in ["ubuntu", "debian", "alpine", "claude-code", "codex-cli", "firewall"] {
+            modules.insert(name.to_string(), toml::Value::Table(toml::map::Map::new()));
+        }
+        modules.insert("nodejs".to_string(), toml::Value::Table(toml::map::Map::new()));
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert!(!config.modules.contains_key("ubuntu"));
+        assert!(!config.modules.contains_key("debian"));
+        assert!(!config.modules.contains_key("alpine"));
+        assert!(!config.modules.contains_key("claude-code"));
+        assert!(!config.modules.contains_key("codex-cli"));
+        assert!(!config.modules.contains_key("firewall"));
+        assert!(config.modules.contains_key("nodejs"));
+    }
+
+    // ───────────────────── user-setup propagation ─────────────────────
+
+    #[test]
+    fn user_setup_propagates_username() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "user-setup".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("username".to_string(), toml::Value::String("coder".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.user, "coder");
+    }
+
+    #[test]
+    fn user_setup_propagates_shell() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "user-setup".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("shell".to_string(), toml::Value::String("/bin/zsh".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.shell, ShellType::Zsh);
+    }
+
+    #[test]
+    fn user_setup_shell_with_full_path() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "user-setup".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("shell".to_string(), toml::Value::String("/usr/bin/zsh".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.shell, ShellType::Zsh);
+    }
+
+    #[test]
+    fn user_setup_does_not_override_explicit_image_user() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+user = "admin"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "user-setup".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("username".to_string(), toml::Value::String("coder".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.user, "admin");
+    }
+
+    #[test]
+    fn user_setup_does_not_override_explicit_image_shell() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[image]
+shell = "sh"
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "user-setup".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("shell".to_string(), toml::Value::String("/bin/zsh".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.shell, ShellType::Sh);
+    }
+
+    // ───────────────────── Empty user config ─────────────────────
+
+    #[test]
+    fn merge_with_empty_user_config_is_noop() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let original_base = config.image.base;
+        let original_shell = config.image.shell;
+        let original_platform = config.image.platform.clone();
+        let user = UserConfig::default();
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base, original_base);
+        assert_eq!(config.image.shell, original_shell);
+        assert_eq!(config.image.platform, original_platform);
+        assert!(config.modules.is_empty());
+    }
+
+    // ───────────────────── Multiple fields at once ─────────────────────
+
+    #[test]
+    fn merge_multiple_fields_simultaneously() {
+        let (mut config, raw_image) = parse_project(MINIMAL);
+        let mut modules = IndexMap::new();
+        modules.insert("rust".to_string(), toml::Value::Table(toml::map::Map::new()));
+        let user = UserConfig {
+            defaults: UserDefaults {
+                base: Some(BaseOs::Debian),
+                shell: Some(ShellType::Zsh),
+                platform: Some("linux/arm64".to_string()),
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.image.base, BaseOs::Debian);
+        assert_eq!(config.image.shell, ShellType::Zsh);
+        assert_eq!(config.image.platform, "linux/arm64");
+        assert!(config.modules.contains_key("rust"));
+    }
+
+    // ───────────────────── Non-table module values ─────────────────────
+
+    #[test]
+    fn merge_module_non_table_project_wins() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[modules]
+nodejs = true
+"#;
+        let (mut config, raw_image) = parse_project(toml_str);
+        let mut modules = IndexMap::new();
+        modules.insert(
+            "nodejs".to_string(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("version".to_string(), toml::Value::String("20".to_string()));
+                t
+            }),
+        );
+        let user = UserConfig {
+            defaults: UserDefaults {
+                modules,
+                ..Default::default()
+            },
+        };
+        merge_configs(&mut config, &user, raw_image.as_ref());
+        assert_eq!(config.modules["nodejs"], toml::Value::Boolean(true));
+    }
+
+    // ───────────────────── image_field_present helper ─────────────────────
+
+    #[test]
+    fn image_field_present_when_absent() {
+        assert!(!image_field_present(None, "base"));
+    }
+
+    #[test]
+    fn image_field_present_when_table_has_key() {
+        let raw: toml::Value = toml::from_str(r#"base = "debian""#).unwrap();
+        assert!(image_field_present(Some(&raw), "base"));
+        assert!(!image_field_present(Some(&raw), "shell"));
+    }
+
+    #[test]
+    fn image_field_present_with_non_table_value() {
+        let raw = toml::Value::String("not a table".to_string());
+        assert!(!image_field_present(Some(&raw), "base"));
+    }
+}
