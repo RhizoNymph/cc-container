@@ -86,7 +86,12 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
         }
         ConfigCommand::Edit => {
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
-            let status = std::process::Command::new(&editor)
+            let parts: Vec<&str> = editor.split_whitespace().collect();
+            if parts.is_empty() {
+                return Err(crate::error::Error::Other("EDITOR is empty".to_string()));
+            }
+            let status = std::process::Command::new(parts[0])
+                .args(&parts[1..])
                 .arg(&config_path)
                 .status()?;
             if !status.success() {
