@@ -41,6 +41,129 @@ pub struct ServiceRemoveArgs {
     pub names: Vec<String>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn default_global() -> super::super::GlobalOpts {
+        super::super::GlobalOpts {
+            target_dir: None,
+            config: None,
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        }
+    }
+
+    #[test]
+    fn service_list_runs_without_error() {
+        let cmd = ServiceCommand::List(ServiceListArgs { category: None });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_list_with_database_category() {
+        let cmd = ServiceCommand::List(ServiceListArgs {
+            category: Some("database".to_string()),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_list_with_cache_category() {
+        let cmd = ServiceCommand::List(ServiceListArgs {
+            category: Some("cache".to_string()),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_list_with_nonexistent_category() {
+        let cmd = ServiceCommand::List(ServiceListArgs {
+            category: Some("nonexistent".to_string()),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_info_postgres() {
+        let cmd = ServiceCommand::Info(ServiceInfoArgs {
+            name: "postgres".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_info_redis() {
+        let cmd = ServiceCommand::Info(ServiceInfoArgs {
+            name: "redis".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_info_kafka() {
+        let cmd = ServiceCommand::Info(ServiceInfoArgs {
+            name: "kafka".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_info_unknown_errors() {
+        let cmd = ServiceCommand::Info(ServiceInfoArgs {
+            name: "nonexistent-service".to_string(),
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("service template not found"));
+    }
+
+    #[test]
+    fn service_add_runs_without_error() {
+        let cmd = ServiceCommand::Add(ServiceAddArgs {
+            names: vec!["postgres".to_string()],
+            params: vec![],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_remove_runs_without_error() {
+        let cmd = ServiceCommand::Remove(ServiceRemoveArgs {
+            names: vec!["redis".to_string()],
+        });
+        let result = run(&cmd, &default_global());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn service_info_all_known_services() {
+        let known = [
+            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
+            "redis", "memcached", "rabbitmq", "kafka", "nats",
+            "elasticsearch", "meilisearch", "typesense", "minio",
+            "prometheus", "grafana", "traefik", "nginx",
+        ];
+        for name in &known {
+            let cmd = ServiceCommand::Info(ServiceInfoArgs {
+                name: name.to_string(),
+            });
+            let result = run(&cmd, &default_global());
+            assert!(result.is_ok(), "service info should succeed for '{}'", name);
+        }
+    }
+}
+
 pub fn run(cmd: &ServiceCommand, _global: &super::GlobalOpts) -> crate::error::Result<()> {
     match cmd {
         ServiceCommand::List(args) => {

@@ -42,6 +42,191 @@ pub struct ConfigGetArgs {
     pub key: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+    use indexmap::IndexMap;
+
+    fn minimal_config() -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type: AgentType::Claude,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig::default(),
+            modules: IndexMap::new(),
+            auth: AuthConfig {
+                claude: Some(ClaudeAuthConfig {
+                    method: ClaudeAuthMethod::ApiKey,
+                }),
+                codex: None,
+            },
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+        }
+    }
+
+    fn write_config(dir: &std::path::Path) -> std::path::PathBuf {
+        let config = minimal_config();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let path = dir.join("cc-container.toml");
+        std::fs::write(&path, toml_str).unwrap();
+        path
+    }
+
+    fn make_global(config_path: std::path::PathBuf) -> super::super::GlobalOpts {
+        super::super::GlobalOpts {
+            target_dir: None,
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        }
+    }
+
+    #[test]
+    fn config_show_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Show(ConfigShowArgs {
+            format: ConfigFormat::Toml,
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_show_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Show(ConfigShowArgs {
+            format: ConfigFormat::Json,
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_show_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Show(ConfigShowArgs {
+            format: ConfigFormat::Yaml,
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_show_errors_on_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nonexistent.toml");
+        let global = make_global(missing);
+
+        let cmd = ConfigCommand::Show(ConfigShowArgs {
+            format: ConfigFormat::Toml,
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn config_validate_on_valid_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Validate;
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_validate_errors_on_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nonexistent.toml");
+        let global = make_global(missing);
+
+        let cmd = ConfigCommand::Validate;
+        let result = run(&cmd, &global);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn config_set_runs_without_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Set(ConfigSetArgs {
+            key: "agent.type".to_string(),
+            value: "codex".to_string(),
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_get_runs_without_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Get(ConfigGetArgs {
+            key: "project.name".to_string(),
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn config_edit_fails_with_nonexistent_editor() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global(config_path);
+
+        // Set EDITOR to a nonexistent binary
+        // SAFETY: test-only env var manipulation
+        unsafe { std::env::set_var("EDITOR", "nonexistent-editor-binary-12345") };
+        let cmd = ConfigCommand::Edit;
+        let result = run(&cmd, &global);
+        assert!(result.is_err());
+        // Clean up
+        unsafe { std::env::remove_var("EDITOR") };
+    }
+
+    #[test]
+    fn config_show_invalid_toml_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("cc-container.toml");
+        std::fs::write(&config_path, "invalid toml {{{{").unwrap();
+        let global = make_global(config_path);
+
+        let cmd = ConfigCommand::Show(ConfigShowArgs {
+            format: ConfigFormat::Toml,
+        });
+        let result = run(&cmd, &global);
+        assert!(result.is_err());
+    }
+}
+
 pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Result<()> {
     let target_dir = global
         .target_dir

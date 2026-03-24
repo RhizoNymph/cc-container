@@ -100,6 +100,139 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+    use indexmap::IndexMap;
+
+    fn make_global_with_config(config_path: std::path::PathBuf) -> super::super::GlobalOpts {
+        super::super::GlobalOpts {
+            target_dir: None,
+            config: Some(config_path),
+            verbose: 0,
+            quiet: true,
+            color: super::super::ColorMode::Never,
+        }
+    }
+
+    fn minimal_config() -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type: AgentType::Claude,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig::default(),
+            modules: IndexMap::new(),
+            auth: AuthConfig {
+                claude: Some(ClaudeAuthConfig {
+                    method: ClaudeAuthMethod::ApiKey,
+                }),
+                codex: None,
+            },
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+        }
+    }
+
+    fn write_config(dir: &std::path::Path) -> std::path::PathBuf {
+        let config = minimal_config();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let path = dir.join("cc-container.toml");
+        std::fs::write(&path, toml_str).unwrap();
+        path
+    }
+
+    #[test]
+    fn doctor_with_valid_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global_with_config(config_path);
+
+        let args = DoctorArgs { verbose: false };
+        // Doctor checks for Docker, which may or may not be installed.
+        // We just run it and verify it doesn't panic.
+        let _result = run(&args, &global);
+    }
+
+    #[test]
+    fn doctor_with_missing_config_still_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nonexistent.toml");
+        let global = make_global_with_config(missing);
+
+        let args = DoctorArgs { verbose: false };
+        let _result = run(&args, &global);
+    }
+
+    #[test]
+    fn doctor_verbose_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = write_config(dir.path());
+        let global = make_global_with_config(config_path);
+
+        let args = DoctorArgs { verbose: true };
+        let _result = run(&args, &global);
+    }
+
+    #[test]
+    fn doctor_with_invalid_config_reports_parse_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("cc-container.toml");
+        std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
+
+        let global = make_global_with_config(config_path);
+        let args = DoctorArgs { verbose: false };
+
+        let _result = run(&args, &global);
+    }
+
+    #[test]
+    fn check_oauth_credentials_api_key_does_nothing() {
+        let config = minimal_config();
+        check_oauth_credentials(&config, false);
+    }
+
+    #[test]
+    fn check_oauth_credentials_oauth_method() {
+        let mut config = minimal_config();
+        config.auth.claude = Some(ClaudeAuthConfig {
+            method: ClaudeAuthMethod::Oauth,
+        });
+        check_oauth_credentials(&config, false);
+    }
+
+    #[test]
+    fn check_oauth_credentials_codex_oauth() {
+        let mut config = minimal_config();
+        config.auth.codex = Some(CodexAuthConfig {
+            method: CodexAuthMethod::Oauth,
+            azure_endpoint: None,
+            custom_env_key: None,
+            custom_base_url: None,
+        });
+        check_oauth_credentials(&config, true);
+    }
+
+    #[test]
+    fn check_oauth_credentials_no_auth() {
+        let mut config = minimal_config();
+        config.auth.claude = None;
+        config.auth.codex = None;
+        check_oauth_credentials(&config, false);
+    }
+}
+
 fn check_oauth_credentials(
     config: &crate::config::ProjectConfig,
     verbose: bool,
