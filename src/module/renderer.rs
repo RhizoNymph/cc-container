@@ -205,3 +205,492 @@ fn merge_with_defaults(
 
     toml::Value::Table(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+    use crate::module::registry::ModuleRegistry;
+    use indexmap::IndexMap;
+
+    /// Helper to create a minimal ProjectConfig for testing.
+    fn minimal_config(agent_type: AgentType) -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig {
+                base: BaseOs::Ubuntu,
+                base_version: None,
+                platform: "linux/amd64".to_string(),
+                tag: None,
+                user: "dev".to_string(),
+                shell: ShellType::Bash,
+            },
+            modules: IndexMap::new(),
+            auth: AuthConfig::default(),
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+        }
+    }
+
+    #[test]
+    fn test_generate_claude_dockerfile() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let config = minimal_config(AgentType::Claude);
+        let result = generator.generate(&config, AgentType::Claude);
+        assert!(result.is_ok(), "Generation failed: {:?}", result.err());
+
+        let dockerfile = result.unwrap();
+
+        // Should contain FROM ubuntu
+        assert!(
+            dockerfile.contains("FROM ubuntu:"),
+            "Should contain FROM ubuntu"
+        );
+
+        // Should contain Node.js installation (auto-added via claude-code dependency)
+        assert!(
+            dockerfile.contains("nodejs") || dockerfile.contains("Node.js"),
+            "Should contain Node.js setup"
+        );
+
+        // Should contain Claude Code installation
+        assert!(
+            dockerfile.contains("claude-code"),
+            "Should contain claude-code installation"
+        );
+
+        // Should contain user setup
+        assert!(
+            dockerfile.contains("dev"),
+            "Should contain user dev setup"
+        );
+
+        // Should end with USER and WORKDIR
+        assert!(
+            dockerfile.contains("USER dev"),
+            "Should set USER to dev"
+        );
+        assert!(
+            dockerfile.contains("WORKDIR /workspace"),
+            "Should set WORKDIR to /workspace"
+        );
+    }
+
+    #[test]
+    fn test_generate_codex_dockerfile() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let config = minimal_config(AgentType::Codex);
+        let result = generator.generate(&config, AgentType::Codex);
+        assert!(result.is_ok(), "Generation failed: {:?}", result.err());
+
+        let dockerfile = result.unwrap();
+
+        assert!(
+            dockerfile.contains("FROM ubuntu:"),
+            "Should contain FROM ubuntu"
+        );
+        assert!(
+            dockerfile.contains("codex") || dockerfile.contains("Codex"),
+            "Should contain codex CLI setup"
+        );
+    }
+
+    #[test]
+    fn test_generate_both_agent_type_errors() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let config = minimal_config(AgentType::Both);
+        let result = generator.generate(&config, AgentType::Both);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not Both"),
+            "Error should mention Both: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_generate_with_debian_base() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.base = BaseOs::Debian;
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("FROM debian:"),
+            "Should contain FROM debian"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_alpine_base() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.base = BaseOs::Alpine;
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("FROM alpine:"),
+            "Should contain FROM alpine"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_custom_base_version() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.base_version = Some("22.04".to_string());
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("FROM ubuntu:22.04"),
+            "Should use custom base version 22.04"
+        );
+    }
+
+    #[test]
+    fn test_generate_default_base_version() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let config = minimal_config(AgentType::Claude);
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("FROM ubuntu:24.04"),
+            "Should use default ubuntu version 24.04"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_extra_modules() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        // Add python and git modules
+        let mut python_params = toml::map::Map::new();
+        python_params.insert(
+            "version".to_string(),
+            toml::Value::String("3.11".to_string()),
+        );
+        config
+            .modules
+            .insert("python".to_string(), toml::Value::Table(python_params));
+        config
+            .modules
+            .insert("git".to_string(), toml::Value::Table(toml::map::Map::new()));
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("Git") || dockerfile.contains("git"),
+            "Should contain git setup"
+        );
+        assert!(
+            dockerfile.contains("Python") || dockerfile.contains("python"),
+            "Should contain python setup"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_firewall_enabled() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.firewall.enabled = true;
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("iptables") || dockerfile.contains("firewall"),
+            "Should contain firewall setup when enabled"
+        );
+    }
+
+    #[test]
+    fn test_generate_firewall_not_included_when_disabled() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let config = minimal_config(AgentType::Claude);
+        // firewall.enabled defaults to false
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        // The firewall module should not be present
+        assert!(
+            !dockerfile.contains("iptables"),
+            "Should not contain iptables when firewall is disabled"
+        );
+    }
+
+    #[test]
+    fn test_generate_custom_user() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.user = "myuser".to_string();
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("USER myuser"),
+            "Should set USER to myuser"
+        );
+        assert!(
+            dockerfile.contains("myuser"),
+            "Should reference the custom user"
+        );
+    }
+
+    #[test]
+    fn test_generate_custom_workspace() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.workspace.mount_path = "/home/dev/project".to_string();
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("WORKDIR /home/dev/project"),
+            "Should set WORKDIR to custom path"
+        );
+    }
+
+    #[test]
+    fn test_generate_parameter_substitution() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.base_version = Some("22.04".to_string());
+        config.agent.claude_version = "1.0.5".to_string();
+
+        // Specify a node version
+        let mut node_params = toml::map::Map::new();
+        node_params.insert(
+            "version".to_string(),
+            toml::Value::String("20".to_string()),
+        );
+        config
+            .modules
+            .insert("node".to_string(), toml::Value::Table(node_params));
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("22.04"),
+            "Should contain ubuntu version 22.04"
+        );
+        assert!(
+            dockerfile.contains("setup_20"),
+            "Should contain node version 20 in setup script URL"
+        );
+        assert!(
+            dockerfile.contains("claude-code@1.0.5"),
+            "Should contain specific claude-code version"
+        );
+    }
+
+    #[test]
+    fn test_generate_uses_default_params_when_none_specified() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        // Don't specify any node params - should use defaults
+        let config = minimal_config(AgentType::Claude);
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+
+        // Default node version is 22
+        assert!(
+            dockerfile.contains("setup_22"),
+            "Should use default node version 22"
+        );
+    }
+
+    #[test]
+    fn test_merge_with_defaults_uses_defaults() {
+        let toml_str = r#"
+[module]
+name = "test"
+category = "tool"
+description = "test"
+
+[module.parameters]
+version = { type = "string", default = "1.0", description = "Version" }
+flag = { type = "bool", default = true, description = "Flag" }
+"#;
+        let def: super::super::definition::ModuleDefinition =
+            toml::from_str(toml_str).unwrap();
+        let user_params = toml::Value::Table(toml::map::Map::new());
+
+        let result = merge_with_defaults(&def, &user_params);
+        let table = result.as_table().unwrap();
+
+        assert_eq!(
+            table.get("version"),
+            Some(&toml::Value::String("1.0".to_string()))
+        );
+        assert_eq!(
+            table.get("flag"),
+            Some(&toml::Value::Boolean(true))
+        );
+    }
+
+    #[test]
+    fn test_merge_with_defaults_user_overrides() {
+        let toml_str = r#"
+[module]
+name = "test"
+category = "tool"
+description = "test"
+
+[module.parameters]
+version = { type = "string", default = "1.0", description = "Version" }
+flag = { type = "bool", default = true, description = "Flag" }
+"#;
+        let def: super::super::definition::ModuleDefinition =
+            toml::from_str(toml_str).unwrap();
+
+        let mut user_table = toml::map::Map::new();
+        user_table.insert(
+            "version".to_string(),
+            toml::Value::String("2.0".to_string()),
+        );
+        let user_params = toml::Value::Table(user_table);
+
+        let result = merge_with_defaults(&def, &user_params);
+        let table = result.as_table().unwrap();
+
+        // version overridden
+        assert_eq!(
+            table.get("version"),
+            Some(&toml::Value::String("2.0".to_string()))
+        );
+        // flag keeps default
+        assert_eq!(
+            table.get("flag"),
+            Some(&toml::Value::Boolean(true))
+        );
+    }
+
+    #[test]
+    fn test_merge_with_defaults_extra_user_params() {
+        let toml_str = r#"
+[module]
+name = "test"
+category = "tool"
+description = "test"
+
+[module.parameters]
+version = { type = "string", default = "1.0", description = "Version" }
+"#;
+        let def: super::super::definition::ModuleDefinition =
+            toml::from_str(toml_str).unwrap();
+
+        let mut user_table = toml::map::Map::new();
+        user_table.insert(
+            "extra_key".to_string(),
+            toml::Value::String("extra_val".to_string()),
+        );
+        let user_params = toml::Value::Table(user_table);
+
+        let result = merge_with_defaults(&def, &user_params);
+        let table = result.as_table().unwrap();
+
+        assert_eq!(
+            table.get("version"),
+            Some(&toml::Value::String("1.0".to_string()))
+        );
+        assert_eq!(
+            table.get("extra_key"),
+            Some(&toml::Value::String("extra_val".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_merge_with_defaults_no_defaults_no_user() {
+        let toml_str = r#"
+[module]
+name = "test"
+category = "tool"
+description = "test"
+
+[module.parameters]
+name = { type = "string", description = "No default" }
+"#;
+        let def: super::super::definition::ModuleDefinition =
+            toml::from_str(toml_str).unwrap();
+        let user_params = toml::Value::Table(toml::map::Map::new());
+
+        let result = merge_with_defaults(&def, &user_params);
+        let table = result.as_table().unwrap();
+
+        // No default, no user override => not present
+        assert!(table.get("name").is_none());
+    }
+
+    #[test]
+    fn test_generate_ordering_base_before_langs() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        let mut python_params = toml::map::Map::new();
+        python_params.insert(
+            "version".to_string(),
+            toml::Value::String("3.12".to_string()),
+        );
+        config
+            .modules
+            .insert("python".to_string(), toml::Value::Table(python_params));
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+
+        // FROM should appear before any RUN commands for language installs
+        let from_pos = dockerfile.find("FROM ubuntu:").unwrap();
+        let python_pos = dockerfile.find("Python").or(dockerfile.find("python")).unwrap();
+        assert!(
+            from_pos < python_pos,
+            "FROM should come before Python installation"
+        );
+    }
+
+    #[test]
+    fn test_generate_with_custom_shell() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.shell = ShellType::Zsh;
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("/bin/zsh"),
+            "Should use zsh as the shell"
+        );
+    }
+}

@@ -1,15 +1,5 @@
-mod auth;
-mod cli;
-mod compose;
-mod config;
-mod error;
-mod firewall;
-mod mcp;
-mod module;
-mod wizard;
-
+use cc_container::cli::{Cli, Commands};
 use clap::Parser;
-use cli::{Cli, Commands};
 
 fn main() {
     let cli = Cli::parse();
@@ -33,13 +23,13 @@ fn main() {
         .init();
 
     let result = match &cli.command {
-        Commands::Init(args) => cli::init::run(args, &cli.global),
-        Commands::Generate(args) => cli::generate::run(args, &cli.global),
-        Commands::Module(cmd) => cli::module::run(cmd, &cli.global),
-        Commands::Service(cmd) => cli::service::run(cmd, &cli.global),
-        Commands::Mcp(cmd) => cli::mcp::run(cmd, &cli.global),
-        Commands::Config(cmd) => cli::config_cmd::run(cmd, &cli.global),
-        Commands::Doctor(args) => cli::doctor::run(args, &cli.global),
+        Commands::Init(args) => cc_container::cli::init::run(args, &cli.global),
+        Commands::Generate(args) => cc_container::cli::generate::run(args, &cli.global),
+        Commands::Module(cmd) => cc_container::cli::module::run(cmd, &cli.global),
+        Commands::Service(cmd) => cc_container::cli::service::run(cmd, &cli.global),
+        Commands::Mcp(cmd) => cc_container::cli::mcp::run(cmd, &cli.global),
+        Commands::Config(cmd) => cc_container::cli::config_cmd::run(cmd, &cli.global),
+        Commands::Doctor(args) => cc_container::cli::doctor::run(args, &cli.global),
         Commands::Completions(args) => {
             let mut cmd = <Cli as clap::CommandFactory>::command();
             clap_complete::generate(args.shell, &mut cmd, "cc-container", &mut std::io::stdout());
