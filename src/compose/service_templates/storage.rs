@@ -39,7 +39,7 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
     };
 
     let agent_env = IndexMap::from([
-        ("S3_ENDPOINT".to_string(), format!("http://minio:9000")),
+        ("S3_ENDPOINT".to_string(), "http://minio:9000".to_string()),
         ("S3_ACCESS_KEY_ID".to_string(), "${MINIO_ACCESS_KEY:-minioadmin}".to_string()),
         ("S3_SECRET_ACCESS_KEY".to_string(), "${MINIO_SECRET_KEY:-minioadmin}".to_string()),
     ]);

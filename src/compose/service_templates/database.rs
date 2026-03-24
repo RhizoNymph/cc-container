@@ -154,7 +154,7 @@ pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 
     let agent_env = IndexMap::from([(
         "MONGODB_URL".to_string(),
-        format!("mongodb://mongodb:27017"),
+        "mongodb://mongodb:27017".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -188,7 +188,7 @@ pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("postgres://root@cockroachdb:26257/defaultdb?sslmode=disable"),
+        "postgres://root@cockroachdb:26257/defaultdb?sslmode=disable".to_string(),
     )]);
 
     Ok((svc, agent_env))

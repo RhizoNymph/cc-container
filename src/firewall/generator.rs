@@ -103,7 +103,7 @@ pub fn generate(config: &ProjectConfig) -> String {
                 "iptables -A OUTPUT -d {cidr} -j ACCEPT\n"
             ));
         }
-        script.push_str("\n");
+        script.push('\n');
     }
 
     // Allow ipset destinations (HTTPS)

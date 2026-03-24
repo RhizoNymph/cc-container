@@ -34,7 +34,7 @@ pub fn elasticsearch(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<S
 
     let agent_env = IndexMap::from([(
         "ELASTICSEARCH_URL".to_string(),
-        format!("http://elasticsearch:9200"),
+        "http://elasticsearch:9200".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -69,7 +69,7 @@ pub fn meilisearch(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
 
     let agent_env = IndexMap::from([(
         "MEILISEARCH_URL".to_string(),
-        format!("http://meilisearch:7700"),
+        "http://meilisearch:7700".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -103,7 +103,7 @@ pub fn typesense(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
 
     let agent_env = IndexMap::from([(
         "TYPESENSE_URL".to_string(),
-        format!("http://typesense:8108"),
+        "http://typesense:8108".to_string(),
     )]);
 
     Ok((svc, agent_env))

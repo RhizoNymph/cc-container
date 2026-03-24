@@ -47,16 +47,15 @@ pub fn run(cmd: &ServiceCommand, _global: &super::GlobalOpts) -> crate::error::R
             let templates = crate::compose::service_templates::list_all();
             let filter_cat = args.category.as_deref();
 
-            println!("{:<20} {:<12} {:<8} {}", "NAME", "CATEGORY", "PORT", "DESCRIPTION");
+            println!("{:<20} {:<12} {:<8} DESCRIPTION", "NAME", "CATEGORY", "PORT");
             println!("{}", "-".repeat(65));
 
             for t in &templates {
                 let cat = t.category.to_string();
-                if let Some(fc) = filter_cat {
-                    if cat != fc {
+                if let Some(fc) = filter_cat
+                    && cat != fc {
                         continue;
                     }
-                }
                 println!("{:<20} {:<12} {:<8} {}", t.name, cat, t.default_port, t.description);
             }
         }

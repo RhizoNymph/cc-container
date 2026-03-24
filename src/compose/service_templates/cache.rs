@@ -26,7 +26,7 @@ pub fn redis(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     let agent_env = IndexMap::from([(
         "REDIS_URL".to_string(),
-        format!("redis://redis:6379"),
+        "redis://redis:6379".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -54,7 +54,7 @@ pub fn memcached(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
 
     let agent_env = IndexMap::from([(
         "MEMCACHED_URL".to_string(),
-        format!("memcached:11211"),
+        "memcached:11211".to_string(),
     )]);
 
     Ok((svc, agent_env))

@@ -35,23 +35,20 @@ pub fn merge_configs(
     // Apply top-level image defaults only when the project file did not
     // contain the key at all.  This avoids overwriting a project that
     // explicitly wrote `base = "ubuntu"` when the user default is "alpine".
-    if let Some(base) = defaults.base {
-        if !image_field_present(raw_image, "base") {
+    if let Some(base) = defaults.base
+        && !image_field_present(raw_image, "base") {
             project.image.base = base;
         }
-    }
 
-    if let Some(shell) = defaults.shell {
-        if !image_field_present(raw_image, "shell") {
+    if let Some(shell) = defaults.shell
+        && !image_field_present(raw_image, "shell") {
             project.image.shell = shell;
         }
-    }
 
-    if let Some(ref platform) = defaults.platform {
-        if !image_field_present(raw_image, "platform") {
+    if let Some(ref platform) = defaults.platform
+        && !image_field_present(raw_image, "platform") {
             project.image.platform = platform.clone();
         }
-    }
 
     // Inherit base_version only when:
     //  - the project didn't set base_version, AND
@@ -106,15 +103,14 @@ pub fn merge_configs(
     // propagate its username/shell params back to the top-level image fields
     // so that the renderer's final `USER` instruction (which reads
     // config.image.user) stays in sync with the user created by the module.
-    if let Some(user_setup) = project.modules.get("user-setup") {
-        if let Some(table) = user_setup.as_table() {
-            if !image_field_present(raw_image, "user") {
-                if let Some(username) = table.get("username").and_then(|v| v.as_str()) {
+    if let Some(user_setup) = project.modules.get("user-setup")
+        && let Some(table) = user_setup.as_table() {
+            if !image_field_present(raw_image, "user")
+                && let Some(username) = table.get("username").and_then(|v| v.as_str()) {
                     project.image.user = username.to_string();
                 }
-            }
-            if !image_field_present(raw_image, "shell") {
-                if let Some(shell_str) = table.get("shell").and_then(|v| v.as_str()) {
+            if !image_field_present(raw_image, "shell")
+                && let Some(shell_str) = table.get("shell").and_then(|v| v.as_str()) {
                     let shell_name = shell_str.rsplit('/').next().unwrap_or(shell_str);
                     match shell_name {
                         "bash" => project.image.shell = ShellType::Bash,
@@ -123,7 +119,5 @@ pub fn merge_configs(
                         _ => {}
                     }
                 }
-            }
         }
-    }
 }

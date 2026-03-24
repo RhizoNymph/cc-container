@@ -60,17 +60,16 @@ pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Re
             let registry = crate::module::ModuleRegistry::new();
             let filter_cat = args.category.as_deref();
 
-            println!("{:<20} {:<10} {}", "NAME", "CATEGORY", "DESCRIPTION");
+            println!("{:<20} {:<10} DESCRIPTION", "NAME", "CATEGORY");
             println!("{}", "-".repeat(60));
 
             for (_name, entry) in registry.all() {
                 let meta = &entry.definition.module;
                 let cat = meta.category.to_string();
-                if let Some(fc) = filter_cat {
-                    if cat != fc {
+                if let Some(fc) = filter_cat
+                    && cat != fc {
                         continue;
                     }
-                }
                 println!("{:<20} {:<10} {}", meta.name, cat, meta.description);
             }
         }

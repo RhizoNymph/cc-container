@@ -135,8 +135,8 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
     for (_name, svc_opt) in &services {
         if let Some(svc) = svc_opt {
             for vol in &svc.volumes {
-                if let dct::Volumes::Simple(v) = vol {
-                    if let Some((vol_name, _)) = v.split_once(':') {
+                if let dct::Volumes::Simple(v) = vol
+                    && let Some((vol_name, _)) = v.split_once(':') {
                         // Only add named volumes (not paths starting with . or /)
                         if !vol_name.starts_with('.') && !vol_name.starts_with('/') && !vol_name.starts_with('~') && !vol_name.contains('$') {
                             top_volumes
@@ -144,7 +144,6 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
                                 .or_insert(dct::MapOrEmpty::Empty);
                         }
                     }
-                }
             }
         }
     }

@@ -29,7 +29,7 @@ pub fn rabbitmq(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String
 
     let agent_env = IndexMap::from([(
         "RABBITMQ_URL".to_string(),
-        format!("amqp://guest:guest@rabbitmq:5672"),
+        "amqp://guest:guest@rabbitmq:5672".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -66,7 +66,7 @@ pub fn kafka(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     let agent_env = IndexMap::from([(
         "KAFKA_BROKERS".to_string(),
-        format!("kafka:9092"),
+        "kafka:9092".to_string(),
     )]);
 
     Ok((svc, agent_env))
@@ -98,7 +98,7 @@ pub fn nats(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, St
 
     let agent_env = IndexMap::from([(
         "NATS_URL".to_string(),
-        format!("nats://nats:4222"),
+        "nats://nats:4222".to_string(),
     )]);
 
     Ok((svc, agent_env))
