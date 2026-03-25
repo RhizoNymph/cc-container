@@ -47,7 +47,7 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
         if !svc.enabled {
             continue;
         }
-        for (port, label) in all_ports_for_service(name, svc) {
+        for (port, label) in all_ports_for_service(name, svc)? {
             for (existing_port, existing_label) in &ports {
                 if *existing_port == port {
                     return Err(crate::error::Error::PortConflict {
@@ -73,9 +73,25 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
     Ok(warnings)
 }
 
+/// Parse a port number from `config.extra[key]`, returning `default` if the key
+/// is absent and an error if the value is outside the valid 1–65535 range.
+fn parse_extra_port(config: &ServiceConfig, key: &str, default: u16) -> crate::error::Result<u16> {
+    match config.extra.get(key).and_then(|v| v.as_integer()) {
+        Some(v) if (1..=65535).contains(&v) => Ok(v as u16),
+        Some(v) => Err(crate::error::Error::InvalidPort {
+            value: v,
+            context: format!("extra.{key}"),
+        }),
+        None => Ok(default),
+    }
+}
+
 /// Returns all host-bound ports for a service: the primary configurable port
-/// plus any hardcoded secondary ports emitted by the template.
-fn all_ports_for_service(name: &str, config: &ServiceConfig) -> Vec<(u16, String)> {
+/// plus any configurable secondary ports emitted by the template.
+fn all_ports_for_service(
+    name: &str,
+    config: &ServiceConfig,
+) -> crate::error::Result<Vec<(u16, String)>> {
     let mut ports = Vec::new();
 
     let port = config.port.or_else(|| default_port_for_service(name));
@@ -83,24 +99,30 @@ fn all_ports_for_service(name: &str, config: &ServiceConfig) -> Vec<(u16, String
         ports.push((port, name.to_string()));
     }
 
-    // Secondary hardcoded ports from service templates
+    // Secondary ports from service templates (configurable via extra)
     match name {
         "cockroachdb" => ports.push((8080, format!("{name} admin UI"))),
-        "rabbitmq" => ports.push((15672, format!("{name} management"))),
-        "kafka" => ports.push((8081, format!("{name} schema registry"))),
-        "nats" => ports.push((8222, format!("{name} monitoring"))),
+        "rabbitmq" => {
+            let mgmt_port = parse_extra_port(config, "management_port", 15672)?;
+            ports.push((mgmt_port, format!("{name} management")));
+        }
+        "kafka" => {
+            let registry_port = parse_extra_port(config, "schema_registry_port", 8081)?;
+            ports.push((registry_port, format!("{name} schema registry")));
+        }
+        "nats" => {
+            let monitoring_port = parse_extra_port(config, "monitoring_port", 8222)?;
+            ports.push((monitoring_port, format!("{name} monitoring")));
+        }
         "traefik" => ports.push((8080, format!("{name} dashboard"))),
         "minio" => {
-            let console_port = config.extra
-                .get("console_port")
-                .and_then(|v| v.as_integer())
-                .unwrap_or(9001) as u16;
+            let console_port = parse_extra_port(config, "console_port", 9001)?;
             ports.push((console_port, format!("{name} console")));
         }
         _ => {}
     }
 
-    ports
+    Ok(ports)
 }
 
 /// Returns the default port for a well-known service, matching the hardcoded
@@ -256,9 +278,7 @@ port = 5432
         match err {
             crate::error::Error::PortConflict { port, a, b } => {
                 assert_eq!(port, 5432);
-                assert!(
-                    (a == "postgres" && b == "redis") || (a == "redis" && b == "postgres")
-                );
+                assert!((a == "postgres" && b == "redis") || (a == "redis" && b == "postgres"));
             }
             other => panic!("Expected PortConflict, got: {:?}", other),
         }
@@ -439,7 +459,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("cockroachdb", &svc);
+        let ports = all_ports_for_service("cockroachdb", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 26257));
         assert!(ports.iter().any(|(p, _)| *p == 8080));
     }
@@ -452,7 +472,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("rabbitmq", &svc);
+        let ports = all_ports_for_service("rabbitmq", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 5672));
         assert!(ports.iter().any(|(p, _)| *p == 15672));
     }
@@ -465,7 +485,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("kafka", &svc);
+        let ports = all_ports_for_service("kafka", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 9092));
         assert!(ports.iter().any(|(p, _)| *p == 8081));
     }
@@ -478,7 +498,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("nats", &svc);
+        let ports = all_ports_for_service("nats", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 4222));
         assert!(ports.iter().any(|(p, _)| *p == 8222));
     }
@@ -491,7 +511,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("traefik", &svc);
+        let ports = all_ports_for_service("traefik", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 80));
         assert!(ports.iter().any(|(p, _)| *p == 8080));
     }
@@ -499,17 +519,14 @@ enabled = false
     #[test]
     fn minio_custom_console_port() {
         let mut extra = indexmap::IndexMap::new();
-        extra.insert(
-            "console_port".to_string(),
-            toml::Value::Integer(9002),
-        );
+        extra.insert("console_port".to_string(), toml::Value::Integer(9002));
         let svc = ServiceConfig {
             enabled: true,
             version: None,
             port: None,
             extra,
         };
-        let ports = all_ports_for_service("minio", &svc);
+        let ports = all_ports_for_service("minio", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 9000));
         assert!(ports.iter().any(|(p, _)| *p == 9002));
     }
@@ -522,7 +539,7 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("minio", &svc);
+        let ports = all_ports_for_service("minio", &svc).unwrap();
         assert!(ports.iter().any(|(p, _)| *p == 9000));
         assert!(ports.iter().any(|(p, _)| *p == 9001));
     }
@@ -535,7 +552,7 @@ enabled = false
             port: Some(15432),
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("postgres", &svc);
+        let ports = all_ports_for_service("postgres", &svc).unwrap();
         assert_eq!(ports.len(), 1);
         assert_eq!(ports[0].0, 15432);
     }
@@ -548,11 +565,199 @@ enabled = false
             port: None,
             extra: indexmap::IndexMap::new(),
         };
-        let ports = all_ports_for_service("unknown-service", &svc);
+        let ports = all_ports_for_service("unknown-service", &svc).unwrap();
         assert!(ports.is_empty());
     }
 
     // ───────────────────── ValidationWarning Display ─────────────────────
+
+    // ───────────────────── Port range validation ─────────────────────
+
+    #[test]
+    fn test_invalid_port_over_65535() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.minio]
+console_port = 70000
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, context } => {
+                assert_eq!(value, 70000);
+                assert!(context.contains("console_port"));
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_invalid_port_zero() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.minio]
+console_port = 0
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, .. } => {
+                assert_eq!(value, 0);
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_invalid_port_negative() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.minio]
+console_port = -1
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, .. } => {
+                assert_eq!(value, -1);
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_valid_custom_port_works() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.minio]
+console_port = 9002
+"#;
+        let config = parse(toml_str);
+        assert!(validate_config(&config).is_ok());
+    }
+
+    // ───────────────────── Configurable secondary ports in validation ─────────────────────
+
+    #[test]
+    fn test_rabbitmq_custom_management_port_validation() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.rabbitmq]
+management_port = 25672
+"#;
+        let config = parse(toml_str);
+        let warnings = validate_config(&config).unwrap();
+        // Should succeed; just verify no port conflict errors
+        let _ = warnings;
+    }
+
+    #[test]
+    fn test_kafka_custom_schema_registry_port_validation() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.kafka]
+schema_registry_port = 18081
+"#;
+        let config = parse(toml_str);
+        let warnings = validate_config(&config).unwrap();
+        let _ = warnings;
+    }
+
+    #[test]
+    fn test_nats_custom_monitoring_port_validation() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.nats]
+monitoring_port = 18222
+"#;
+        let config = parse(toml_str);
+        let warnings = validate_config(&config).unwrap();
+        let _ = warnings;
+    }
+
+    #[test]
+    fn test_rabbitmq_invalid_management_port() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.rabbitmq]
+management_port = 99999
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, context } => {
+                assert_eq!(value, 99999);
+                assert!(context.contains("management_port"));
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_kafka_invalid_schema_registry_port() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.kafka]
+schema_registry_port = 99999
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, context } => {
+                assert_eq!(value, 99999);
+                assert!(context.contains("schema_registry_port"));
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_nats_invalid_monitoring_port() {
+        let toml_str = r#"
+[project]
+name = "test"
+[agent]
+type = "claude"
+[services.nats]
+monitoring_port = 99999
+"#;
+        let config = parse(toml_str);
+        let err = validate_config(&config).unwrap_err();
+        match err {
+            crate::error::Error::InvalidPort { value, context } => {
+                assert_eq!(value, 99999);
+                assert!(context.contains("monitoring_port"));
+            }
+            other => panic!("Expected InvalidPort, got: {:?}", other),
+        }
+    }
 
     #[test]
     fn validation_warning_display() {
@@ -582,7 +787,11 @@ cap_add = ["NET_ADMIN"]
 "#;
         let config = parse(toml_str);
         let warnings = validate_config(&config).unwrap();
-        assert!(warnings.is_empty(), "Expected no warnings, got: {:?}", warnings);
+        assert!(
+            warnings.is_empty(),
+            "Expected no warnings, got: {:?}",
+            warnings
+        );
     }
 
     // ───────────────────── Port conflict between primary and secondary ─────────────────────
