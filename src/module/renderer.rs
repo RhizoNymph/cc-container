@@ -17,23 +17,19 @@ impl<'a> DockerfileGenerator<'a> {
 
     /// Generate a Dockerfile for the given agent type.
     /// When agent_type is Both, call this twice with Claude and Codex separately.
-    pub fn generate(
-        &self,
-        config: &ProjectConfig,
-        agent_type: AgentType,
-    ) -> Result<String> {
+    pub fn generate(&self, config: &ProjectConfig, agent_type: AgentType) -> Result<String> {
         let mut modules = config.modules.clone();
 
         // Determine which base module to add based on image.base
         let base_name = config.image.base.to_string();
         if !modules.contains_key(&base_name) {
             let mut base_params = toml::map::Map::new();
-            let version = config.image.base_version.clone()
+            let version = config
+                .image
+                .base_version
+                .clone()
                 .unwrap_or_else(|| default_version_for_os(config.image.base).to_string());
-            base_params.insert(
-                "version".to_string(),
-                toml::Value::String(version),
-            );
+            base_params.insert("version".to_string(), toml::Value::String(version));
             modules.insert(base_name.clone(), toml::Value::Table(base_params));
         }
 
@@ -46,7 +42,7 @@ impl<'a> DockerfileGenerator<'a> {
             );
             params.insert(
                 "shell".to_string(),
-                toml::Value::String(format!("/bin/{}", config.image.shell)),
+                toml::Value::String(config.image.shell.to_string()),
             );
             modules.insert("user-setup".to_string(), toml::Value::Table(params));
         }
@@ -89,16 +85,7 @@ impl<'a> DockerfileGenerator<'a> {
             );
         }
 
-        // Resolve ordering
-        let resolver = ModuleResolver::new(self.registry);
-        let ordered = resolver.resolve(&modules)?;
-
-        // Render each module template
-        let base_os = config.image.base.to_string();
-        let mut env = Environment::new();
-        let mut dockerfile = String::new();
-
-        // Add custom pre_agent snippet tracking
+        // Extract custom pre/post agent snippets before resolving
         let custom_pre = modules
             .get("custom")
             .and_then(|v| v.get("pre_agent"))
@@ -110,6 +97,26 @@ impl<'a> DockerfileGenerator<'a> {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        if modules.contains_key("custom") && custom_pre.is_none() && custom_post.is_none() {
+            return Err(Error::Other(
+                "[modules.custom] is present but has no 'pre_agent' or 'post_agent' field. \
+                 Add at least one to include custom Dockerfile instructions."
+                    .to_string(),
+            ));
+        }
+
+        // Remove custom from modules before resolving (it's not a real module)
+        modules.shift_remove("custom");
+
+        // Resolve ordering
+        let resolver = ModuleResolver::new(self.registry);
+        let ordered = resolver.resolve(&modules)?;
+
+        // Render each module template
+        let base_os = config.image.base.to_string();
+        let mut env = Environment::new();
+        let mut dockerfile = String::new();
+
         let mut agent_rendered = false;
 
         for module_name in &ordered {
@@ -117,20 +124,21 @@ impl<'a> DockerfileGenerator<'a> {
                 continue; // handled via pre/post injection
             }
 
-            let entry = self.registry.get(module_name).ok_or_else(|| {
-                Error::ModuleNotFound(module_name.clone())
-            })?;
+            let entry = self
+                .registry
+                .get(module_name)
+                .ok_or_else(|| Error::ModuleNotFound(module_name.clone()))?;
 
             // Get user params for this module, merged with defaults
             let user_params = modules
                 .get(module_name)
                 .cloned()
                 .unwrap_or(toml::Value::Table(toml::map::Map::new()));
-            let params = merge_with_defaults(&entry.definition, &user_params);
+            let params = merge_with_defaults(module_name, &entry.definition, &user_params)?;
 
             // Insert pre_agent custom snippet before agent modules
-            let is_agent = entry.definition.module.category
-                == super::definition::ModuleCategory::Agent;
+            let is_agent =
+                entry.definition.module.category == super::definition::ModuleCategory::Agent;
             if is_agent && !agent_rendered {
                 if let Some(ref pre) = custom_pre {
                     dockerfile.push_str(pre.trim());
@@ -182,11 +190,14 @@ impl<'a> DockerfileGenerator<'a> {
     }
 }
 
-/// Merge user-provided params with module defaults.
+/// Merge user-provided params with module defaults and validate types/allowed values.
 fn merge_with_defaults(
+    module_name: &str,
     definition: &super::definition::ModuleDefinition,
     user_params: &toml::Value,
-) -> toml::Value {
+) -> Result<toml::Value> {
+    use super::definition::ParamType;
+
     let mut result = toml::map::Map::new();
 
     // Start with defaults
@@ -203,7 +214,38 @@ fn merge_with_defaults(
         }
     }
 
-    toml::Value::Table(result)
+    // Validate each parameter that has a definition
+    for (key, param_def) in &definition.module.parameters {
+        if let Some(value) = result.get(key) {
+            // Check type matches declared param_type
+            let type_ok = match param_def.param_type {
+                ParamType::String => value.is_str(),
+                ParamType::Bool => matches!(value, toml::Value::Boolean(_)),
+                ParamType::Int => value.is_integer(),
+                ParamType::List => value.is_array(),
+            };
+            if !type_ok {
+                return Err(Error::InvalidParameter {
+                    module: module_name.to_string(),
+                    param: key.clone(),
+                    reason: format!("expected type {:?}, got {:?}", param_def.param_type, value),
+                });
+            }
+
+            // Check allowed_values constraint
+            if let Some(ref allowed) = param_def.allowed_values
+                && !allowed.contains(value)
+            {
+                return Err(Error::InvalidParameter {
+                    module: module_name.to_string(),
+                    param: key.clone(),
+                    reason: format!("value {:?} is not in allowed values: {:?}", value, allowed),
+                });
+            }
+        }
+    }
+
+    Ok(toml::Value::Table(result))
 }
 
 #[cfg(test)]
@@ -275,16 +317,10 @@ mod tests {
         );
 
         // Should contain user setup
-        assert!(
-            dockerfile.contains("dev"),
-            "Should contain user dev setup"
-        );
+        assert!(dockerfile.contains("dev"), "Should contain user dev setup");
 
         // Should end with USER and WORKDIR
-        assert!(
-            dockerfile.contains("USER dev"),
-            "Should set USER to dev"
-        );
+        assert!(dockerfile.contains("USER dev"), "Should set USER to dev");
         assert!(
             dockerfile.contains("WORKDIR /workspace"),
             "Should set WORKDIR to /workspace"
@@ -492,10 +528,7 @@ mod tests {
 
         // Specify a node version
         let mut node_params = toml::map::Map::new();
-        node_params.insert(
-            "version".to_string(),
-            toml::Value::String("20".to_string()),
-        );
+        node_params.insert("version".to_string(), toml::Value::String("20".to_string()));
         config
             .modules
             .insert("node".to_string(), toml::Value::Table(node_params));
@@ -543,21 +576,17 @@ description = "test"
 version = { type = "string", default = "1.0", description = "Version" }
 flag = { type = "bool", default = true, description = "Flag" }
 "#;
-        let def: super::super::definition::ModuleDefinition =
-            toml::from_str(toml_str).unwrap();
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
         let user_params = toml::Value::Table(toml::map::Map::new());
 
-        let result = merge_with_defaults(&def, &user_params);
+        let result = merge_with_defaults("test", &def, &user_params).unwrap();
         let table = result.as_table().unwrap();
 
         assert_eq!(
             table.get("version"),
             Some(&toml::Value::String("1.0".to_string()))
         );
-        assert_eq!(
-            table.get("flag"),
-            Some(&toml::Value::Boolean(true))
-        );
+        assert_eq!(table.get("flag"), Some(&toml::Value::Boolean(true)));
     }
 
     #[test]
@@ -572,8 +601,7 @@ description = "test"
 version = { type = "string", default = "1.0", description = "Version" }
 flag = { type = "bool", default = true, description = "Flag" }
 "#;
-        let def: super::super::definition::ModuleDefinition =
-            toml::from_str(toml_str).unwrap();
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
 
         let mut user_table = toml::map::Map::new();
         user_table.insert(
@@ -582,7 +610,7 @@ flag = { type = "bool", default = true, description = "Flag" }
         );
         let user_params = toml::Value::Table(user_table);
 
-        let result = merge_with_defaults(&def, &user_params);
+        let result = merge_with_defaults("test", &def, &user_params).unwrap();
         let table = result.as_table().unwrap();
 
         // version overridden
@@ -591,10 +619,7 @@ flag = { type = "bool", default = true, description = "Flag" }
             Some(&toml::Value::String("2.0".to_string()))
         );
         // flag keeps default
-        assert_eq!(
-            table.get("flag"),
-            Some(&toml::Value::Boolean(true))
-        );
+        assert_eq!(table.get("flag"), Some(&toml::Value::Boolean(true)));
     }
 
     #[test]
@@ -608,8 +633,7 @@ description = "test"
 [module.parameters]
 version = { type = "string", default = "1.0", description = "Version" }
 "#;
-        let def: super::super::definition::ModuleDefinition =
-            toml::from_str(toml_str).unwrap();
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
 
         let mut user_table = toml::map::Map::new();
         user_table.insert(
@@ -618,7 +642,7 @@ version = { type = "string", default = "1.0", description = "Version" }
         );
         let user_params = toml::Value::Table(user_table);
 
-        let result = merge_with_defaults(&def, &user_params);
+        let result = merge_with_defaults("test", &def, &user_params).unwrap();
         let table = result.as_table().unwrap();
 
         assert_eq!(
@@ -642,11 +666,10 @@ description = "test"
 [module.parameters]
 name = { type = "string", description = "No default" }
 "#;
-        let def: super::super::definition::ModuleDefinition =
-            toml::from_str(toml_str).unwrap();
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
         let user_params = toml::Value::Table(toml::map::Map::new());
 
-        let result = merge_with_defaults(&def, &user_params);
+        let result = merge_with_defaults("test", &def, &user_params).unwrap();
         let table = result.as_table().unwrap();
 
         // No default, no user override => not present
@@ -672,7 +695,10 @@ name = { type = "string", description = "No default" }
 
         // FROM should appear before any RUN commands for language installs
         let from_pos = dockerfile.find("FROM ubuntu:").unwrap();
-        let python_pos = dockerfile.find("Python").or(dockerfile.find("python")).unwrap();
+        let python_pos = dockerfile
+            .find("Python")
+            .or(dockerfile.find("python"))
+            .unwrap();
         assert!(
             from_pos < python_pos,
             "FROM should come before Python installation"
@@ -689,8 +715,233 @@ name = { type = "string", description = "No default" }
 
         let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
         assert!(
-            dockerfile.contains("/bin/zsh"),
-            "Should use zsh as the shell"
+            dockerfile.contains("command -v zsh"),
+            "Should use command -v to resolve zsh path"
+        );
+    }
+
+    // --- Bug 5: Parameter type validation tests ---
+
+    #[test]
+    fn test_param_type_mismatch_string_for_bool() {
+        let toml_str = r#"
+[module]
+name = "test-mod"
+category = "tool"
+description = "test"
+
+[module.parameters]
+flag = { type = "bool", default = true, description = "A flag" }
+"#;
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
+
+        let mut user_table = toml::map::Map::new();
+        user_table.insert(
+            "flag".to_string(),
+            toml::Value::String("not-a-bool".to_string()),
+        );
+        let user_params = toml::Value::Table(user_table);
+
+        let result = merge_with_defaults("test-mod", &def, &user_params);
+        assert!(
+            result.is_err(),
+            "Should fail when string provided for bool param"
+        );
+        let err = result.unwrap_err();
+        match &err {
+            Error::InvalidParameter {
+                module,
+                param,
+                reason,
+            } => {
+                assert_eq!(module, "test-mod");
+                assert_eq!(param, "flag");
+                assert!(
+                    reason.contains("bool"),
+                    "Reason should mention expected type: {}",
+                    reason
+                );
+            }
+            other => panic!("Expected InvalidParameter, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_param_allowed_values_violation() {
+        let toml_str = r#"
+[module]
+name = "test-mod"
+category = "lang"
+description = "test"
+
+[module.parameters]
+version = { type = "string", default = "22", description = "Version", allowed_values = ["18", "20", "22"] }
+"#;
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
+
+        let mut user_table = toml::map::Map::new();
+        user_table.insert("version".to_string(), toml::Value::String("99".to_string()));
+        let user_params = toml::Value::Table(user_table);
+
+        let result = merge_with_defaults("test-mod", &def, &user_params);
+        assert!(
+            result.is_err(),
+            "Should fail when value not in allowed_values"
+        );
+        let err = result.unwrap_err();
+        match &err {
+            Error::InvalidParameter {
+                module,
+                param,
+                reason,
+            } => {
+                assert_eq!(module, "test-mod");
+                assert_eq!(param, "version");
+                assert!(
+                    reason.contains("allowed"),
+                    "Reason should mention allowed values: {}",
+                    reason
+                );
+            }
+            other => panic!("Expected InvalidParameter, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_valid_params_pass_validation() {
+        let toml_str = r#"
+[module]
+name = "test-mod"
+category = "lang"
+description = "test"
+
+[module.parameters]
+version = { type = "string", default = "22", description = "Version", allowed_values = ["18", "20", "22"] }
+flag = { type = "bool", default = true, description = "Flag" }
+count = { type = "int", default = 3, description = "Count" }
+"#;
+        let def: super::super::definition::ModuleDefinition = toml::from_str(toml_str).unwrap();
+
+        let mut user_table = toml::map::Map::new();
+        user_table.insert("version".to_string(), toml::Value::String("20".to_string()));
+        user_table.insert("flag".to_string(), toml::Value::Boolean(false));
+        user_table.insert("count".to_string(), toml::Value::Integer(5));
+        let user_params = toml::Value::Table(user_table);
+
+        let result = merge_with_defaults("test-mod", &def, &user_params);
+        assert!(
+            result.is_ok(),
+            "Valid params should pass: {:?}",
+            result.err()
+        );
+        let table = result.unwrap();
+        let table = table.as_table().unwrap();
+        assert_eq!(
+            table.get("version"),
+            Some(&toml::Value::String("20".to_string()))
+        );
+        assert_eq!(table.get("flag"), Some(&toml::Value::Boolean(false)));
+        assert_eq!(table.get("count"), Some(&toml::Value::Integer(5)));
+    }
+
+    // --- Bug 6: Shell uses command -v ---
+
+    #[test]
+    fn test_shell_uses_command_v() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        config.image.shell = ShellType::Zsh;
+
+        let dockerfile = generator.generate(&config, AgentType::Claude).unwrap();
+        assert!(
+            dockerfile.contains("command -v zsh"),
+            "Should use 'command -v zsh' to resolve shell path, got:\n{}",
+            dockerfile,
+        );
+    }
+
+    // --- Bug 8: Empty custom module error tests ---
+
+    #[test]
+    fn test_custom_module_empty_returns_error() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        // Add empty [modules.custom] with no pre_agent or post_agent
+        config.modules.insert(
+            "custom".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
+
+        let result = generator.generate(&config, AgentType::Claude);
+        assert!(
+            result.is_err(),
+            "Empty [modules.custom] should return error"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("pre_agent") && err_msg.contains("post_agent"),
+            "Error should mention pre_agent and post_agent: {}",
+            err_msg,
+        );
+    }
+
+    #[test]
+    fn test_custom_module_pre_agent_only_works() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        let mut custom_table = toml::map::Map::new();
+        custom_table.insert(
+            "pre_agent".to_string(),
+            toml::Value::String("RUN echo pre".to_string()),
+        );
+        config
+            .modules
+            .insert("custom".to_string(), toml::Value::Table(custom_table));
+
+        let result = generator.generate(&config, AgentType::Claude);
+        assert!(
+            result.is_ok(),
+            "Custom with pre_agent should work: {:?}",
+            result.err()
+        );
+        let dockerfile = result.unwrap();
+        assert!(
+            dockerfile.contains("RUN echo pre"),
+            "Should contain pre_agent snippet",
+        );
+    }
+
+    #[test]
+    fn test_custom_module_post_agent_only_works() {
+        let registry = ModuleRegistry::new();
+        let generator = DockerfileGenerator::new(&registry);
+
+        let mut config = minimal_config(AgentType::Claude);
+        let mut custom_table = toml::map::Map::new();
+        custom_table.insert(
+            "post_agent".to_string(),
+            toml::Value::String("RUN echo post".to_string()),
+        );
+        config
+            .modules
+            .insert("custom".to_string(), toml::Value::Table(custom_table));
+
+        let result = generator.generate(&config, AgentType::Claude);
+        assert!(
+            result.is_ok(),
+            "Custom with post_agent should work: {:?}",
+            result.err()
+        );
+        let dockerfile = result.unwrap();
+        assert!(
+            dockerfile.contains("RUN echo post"),
+            "Should contain post_agent snippet",
         );
     }
 }
