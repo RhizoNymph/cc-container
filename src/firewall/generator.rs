@@ -15,12 +15,23 @@ fn is_valid_domain(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
 }
 
-/// Returns true if `s` looks like a valid CIDR (only [0-9./]).
+/// Returns true if `s` is a valid IPv4 CIDR (e.g. `10.0.0.0/8`).
+/// Validates each octet is 0-255 and prefix length is 0-32.
 fn is_valid_cidr(s: &str) -> bool {
-    !s.is_empty()
-        && s.contains('/')
-        && s.chars()
-            .all(|c| c.is_ascii_digit() || c == '.' || c == '/')
+    let Some((ip_part, prefix_part)) = s.split_once('/') else {
+        return false;
+    };
+    let Ok(prefix) = prefix_part.parse::<u8>() else {
+        return false;
+    };
+    if prefix > 32 {
+        return false;
+    }
+    let octets: Vec<&str> = ip_part.split('.').collect();
+    if octets.len() != 4 {
+        return false;
+    }
+    octets.iter().all(|o| o.parse::<u8>().is_ok())
 }
 
 /// Generate the contents of init-firewall.sh.
@@ -86,10 +97,23 @@ pub fn generate(config: &ProjectConfig) -> String {
     }
     script.push_str(")\n\n");
 
+    // Bash function to validate IPv4 addresses (each octet 0-255)
+    script.push_str("# Validate that a string is a well-formed IPv4 address\n");
+    script.push_str("is_ipv4() {\n");
+    script.push_str("  local IFS='.'\n");
+    script.push_str("  read -ra octets <<< \"$1\"\n");
+    script.push_str("  [[ ${#octets[@]} -eq 4 ]] || return 1\n");
+    script.push_str("  for o in \"${octets[@]}\"; do\n");
+    script.push_str(
+        "    [[ \"$o\" =~ ^[0-9]+$ ]] && [ \"$o\" -ge 0 ] && [ \"$o\" -le 255 ] || return 1\n",
+    );
+    script.push_str("  done\n");
+    script.push_str("}\n\n");
+
     script.push_str("for domain in \"${DOMAINS[@]}\"; do\n");
     script.push_str("  ips=$(dig +short \"$domain\" A 2>/dev/null || true)\n");
     script.push_str("  for ip in $ips; do\n");
-    script.push_str("    if [[ \"$ip\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then\n");
+    script.push_str("    if is_ipv4 \"$ip\"; then\n");
     script.push_str("      ipset add allowed_ips \"$ip\" -exist\n");
     script.push_str("    fi\n");
     script.push_str("  done\n");
@@ -128,17 +152,19 @@ pub fn generate(config: &ProjectConfig) -> String {
                 eprintln!("warning: skipping invalid CIDR in firewall config: {cidr}");
                 continue;
             }
-            script.push_str(&format!(
-                "iptables -A OUTPUT -d {cidr} -j ACCEPT\n"
-            ));
+            script.push_str(&format!("iptables -A OUTPUT -d {cidr} -j ACCEPT\n"));
         }
         script.push('\n');
     }
 
     // Allow ipset destinations (HTTPS)
     script.push_str("# Allow HTTPS to resolved domains\n");
-    script.push_str("iptables -A OUTPUT -p tcp --dport 443 -m set --match-set allowed_ips dst -j ACCEPT\n");
-    script.push_str("iptables -A OUTPUT -p tcp --dport 80 -m set --match-set allowed_ips dst -j ACCEPT\n\n");
+    script.push_str(
+        "iptables -A OUTPUT -p tcp --dport 443 -m set --match-set allowed_ips dst -j ACCEPT\n",
+    );
+    script.push_str(
+        "iptables -A OUTPUT -p tcp --dport 80 -m set --match-set allowed_ips dst -j ACCEPT\n\n",
+    );
 
     // Allow Docker network (compose services communicate via internal network)
     script.push_str("# Allow Docker internal network (compose services)\n");
@@ -159,7 +185,9 @@ pub fn generate(config: &ProjectConfig) -> String {
     script.push_str("  ip6tables -A OUTPUT -j DROP\n");
     script.push_str("fi\n\n");
 
-    script.push_str("echo \"Firewall configured: $(ipset list allowed_ips | grep -c '^[0-9]') IPs allowed\"\n");
+    script.push_str(
+        "echo \"Firewall configured: $(ipset list allowed_ips | grep -c '^[0-9]') IPs allowed\"\n",
+    );
 
     script
 }

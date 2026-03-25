@@ -258,8 +258,9 @@ mod firewall_generator_tests {
     fn script_allows_established_connections() {
         let cfg = make_config(AgentType::Claude, default_firewall());
         let script = generator::generate(&cfg);
-        assert!(script
-            .contains("iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT"));
+        assert!(
+            script.contains("iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT")
+        );
     }
 
     #[test]
@@ -677,9 +678,9 @@ mod firewall_generator_tests {
     #[test]
     fn invalid_cidr_formats_rejected_by_generate() {
         let invalid_cidrs = vec![
-            "10.0.0.0".to_string(),     // no slash
-            "not-a-cidr".to_string(),    // letters + hyphens
-            "abc/def".to_string(),       // letters
+            "10.0.0.0".to_string(),         // no slash
+            "not-a-cidr".to_string(),       // letters + hyphens
+            "abc/def".to_string(),          // letters
             "10.0.0.0/8 extra".to_string(), // space
         ];
         let fw = FirewallConfig {
@@ -758,7 +759,10 @@ mod firewall_generator_tests {
     fn domain_resolution_loop_validates_ip_format() {
         let cfg = make_config(AgentType::Claude, default_firewall());
         let script = generator::generate(&cfg);
-        assert!(script.contains("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"));
+        assert!(
+            script.contains("is_ipv4 \"$ip\""),
+            "generated script should call is_ipv4 function to validate IPs"
+        );
     }
 
     #[test]
@@ -862,5 +866,45 @@ mod firewall_generator_tests {
         // (the caller checks enabled before calling generate)
         assert!(script.starts_with("#!/usr/bin/env bash\n"));
         assert!(script.contains("iptables -A OUTPUT -j DROP"));
+    }
+
+    // ── IPv4 validation function in generated script ────────────────
+
+    #[test]
+    fn generated_script_contains_is_ipv4_function() {
+        let cfg = make_config(AgentType::Claude, default_firewall());
+        let script = generator::generate(&cfg);
+        assert!(
+            script.contains("is_ipv4()"),
+            "generated script should contain the is_ipv4 bash function"
+        );
+    }
+
+    // ── CIDR validation rejects malformed inputs ────────────────────
+
+    #[test]
+    fn invalid_cidr_with_bad_octet_rejected() {
+        let fw = FirewallConfig {
+            allowed_cidrs: vec!["999.0.0.0/8".to_string()],
+            ..default_firewall()
+        };
+        let script = generator::generate(&make_config(AgentType::Claude, fw));
+        assert!(
+            !script.contains("999.0.0.0/8"),
+            "CIDR with invalid octet 999 should be rejected"
+        );
+    }
+
+    #[test]
+    fn invalid_cidr_with_bad_prefix_rejected() {
+        let fw = FirewallConfig {
+            allowed_cidrs: vec!["10.0.0.0/33".to_string()],
+            ..default_firewall()
+        };
+        let script = generator::generate(&make_config(AgentType::Claude, fw));
+        assert!(
+            !script.contains("10.0.0.0/33"),
+            "CIDR with prefix length 33 should be rejected"
+        );
     }
 }
