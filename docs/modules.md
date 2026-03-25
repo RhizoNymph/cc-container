@@ -32,10 +32,25 @@ after = ["base"]                 # ordering constraint
 - **agent**: AI agents (claude_code, codex_cli)
 - **security**: Security config (user_setup, firewall)
 
+## Parameter Validation
+
+When user-provided parameters are merged with module defaults, the renderer validates:
+
+- **Type checking**: Each parameter value must match the declared `type` in the module definition (string, bool, int, list). A type mismatch produces an `InvalidParameter` error.
+- **Allowed values**: If a parameter declares `allowed_values`, the provided value must be in that list. Values outside the list produce an `InvalidParameter` error.
+
+## Custom Modules
+
+The `[modules.custom]` config section supports `pre_agent` and `post_agent` string fields for injecting raw Dockerfile instructions before/after agent module rendering. If `[modules.custom]` is present but has neither field, the renderer returns an error to prevent silent misconfiguration.
+
+## Shell Path Resolution
+
+The `user-setup` module template resolves shell paths dynamically at build time using `$(command -v <shell>)` rather than hardcoding `/bin/<shell>`. This handles shells like `zsh` that may be installed at `/usr/bin/zsh` on Debian/Ubuntu.
+
 ## Implementation Files
 
 - `src/module/definition.rs` — `ModuleDefinition` struct (deserialized from TOML)
 - `src/module/registry.rs` — `ModuleRegistry` loads built-ins and optional user modules
 - `src/module/resolver.rs` — `ModuleResolver` resolves dependencies via topological sort
-- `src/module/renderer.rs` — `DockerfileGenerator` renders final Dockerfile via minijinja
+- `src/module/renderer.rs` — `DockerfileGenerator` renders final Dockerfile via minijinja; `merge_with_defaults` validates parameter types and allowed values
 - `src/module/builtin/` — All built-in module TOML + J2 template pairs

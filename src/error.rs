@@ -29,6 +29,13 @@ pub enum Error {
     #[error("circular dependency detected in modules")]
     CircularDependency,
 
+    #[error("invalid parameter '{param}' for module '{module}': {reason}")]
+    InvalidParameter {
+        module: String,
+        param: String,
+        reason: String,
+    },
+
     #[error("template rendering error: {0}")]
     TemplateRender(String),
 

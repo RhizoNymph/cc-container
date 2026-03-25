@@ -1,9 +1,9 @@
 # Create non-root user: {{ params.username }}
 {% if base_os == "alpine" %}
-RUN adduser -D -s {{ params.shell }} {{ params.username }} \
+RUN adduser -D -s $(command -v {{ params.shell }}) {{ params.username }} \
     && echo "{{ params.username }} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 {% else %}
-RUN useradd -m -s {{ params.shell }} -G sudo {{ params.username }} \
+RUN useradd -m -s $(command -v {{ params.shell }}) -G sudo {{ params.username }} \
     && echo "{{ params.username }} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/{{ params.username }} \
     && chmod 0440 /etc/sudoers.d/{{ params.username }}
 {% endif %}
