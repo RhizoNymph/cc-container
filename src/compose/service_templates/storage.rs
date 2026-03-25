@@ -7,22 +7,43 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
     let version = config.version.as_deref().unwrap_or("latest");
     let host_port = config.port.unwrap_or(9000);
 
-    let console_port = config
+    let console_port: u16 = match config
         .extra
         .get("console_port")
         .and_then(|v| v.as_integer())
-        .unwrap_or(9001) as u16;
+    {
+        Some(v) if (1..=65535).contains(&v) => v as u16,
+        Some(v) => {
+            return Err(crate::error::Error::InvalidPort {
+                value: v,
+                context: "minio extra.console_port".to_string(),
+            });
+        }
+        None => 9001,
+    };
 
     let svc = dct::Service {
         image: Some(format!("minio/minio:{version}")),
-        command: Some(dct::Command::Simple("server /data --console-address :9001".to_string())),
+        command: Some(dct::Command::Simple(
+            "server /data --console-address :9001".to_string(),
+        )),
         ports: dct::Ports::Short(vec![
             format!("{host_port}:9000"),
             format!("{console_port}:9001"),
         ]),
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("MINIO_ROOT_USER".to_string(), Some(dct::SingleValue::String("${MINIO_ACCESS_KEY:-minioadmin}".to_string()))),
-            ("MINIO_ROOT_PASSWORD".to_string(), Some(dct::SingleValue::String("${MINIO_SECRET_KEY:-minioadmin}".to_string()))),
+            (
+                "MINIO_ROOT_USER".to_string(),
+                Some(dct::SingleValue::String(
+                    "${MINIO_ACCESS_KEY:-minioadmin}".to_string(),
+                )),
+            ),
+            (
+                "MINIO_ROOT_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(
+                    "${MINIO_SECRET_KEY:-minioadmin}".to_string(),
+                )),
+            ),
         ])),
         volumes: vec![dct::Volumes::Simple("miniodata:/data".to_string())],
         healthcheck: Some(dct::Healthcheck {
@@ -40,8 +61,14 @@ pub fn minio(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
 
     let agent_env = IndexMap::from([
         ("S3_ENDPOINT".to_string(), "http://minio:9000".to_string()),
-        ("S3_ACCESS_KEY_ID".to_string(), "${MINIO_ACCESS_KEY:-minioadmin}".to_string()),
-        ("S3_SECRET_ACCESS_KEY".to_string(), "${MINIO_SECRET_KEY:-minioadmin}".to_string()),
+        (
+            "S3_ACCESS_KEY_ID".to_string(),
+            "${MINIO_ACCESS_KEY:-minioadmin}".to_string(),
+        ),
+        (
+            "S3_SECRET_ACCESS_KEY".to_string(),
+            "${MINIO_SECRET_KEY:-minioadmin}".to_string(),
+        ),
     ]);
 
     Ok((svc, agent_env))
@@ -150,7 +177,10 @@ mod tests {
             ..default_config()
         };
         let (svc, _) = minio(&config).unwrap();
-        assert_eq!(svc.image, Some("minio/minio:RELEASE.2024-01-01".to_string()));
+        assert_eq!(
+            svc.image,
+            Some("minio/minio:RELEASE.2024-01-01".to_string())
+        );
     }
 
     #[test]

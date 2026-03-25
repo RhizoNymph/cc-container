@@ -45,6 +45,9 @@ pub enum Error {
     #[error("port conflict: port {port} used by both {a} and {b}")]
     PortConflict { port: u16, a: String, b: String },
 
+    #[error("invalid port number {value} in {context}: must be 1-65535")]
+    InvalidPort { value: i64, context: String },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

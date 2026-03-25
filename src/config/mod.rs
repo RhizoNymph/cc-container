@@ -47,8 +47,7 @@ pub fn load_effective_config(path: &Path) -> Result<ProjectConfig> {
     if let Some(user_config) = load_user_config()? {
         // Parse the raw TOML table so merge can distinguish "field absent"
         // from "field explicitly set to the serde default value".
-        let raw: toml::Value = toml::from_str(&content)
-            .expect("already parsed successfully above");
+        let raw: toml::Value = toml::from_str(&content)?;
         let raw_image = raw.get("image");
         merge::merge_configs(&mut config, &user_config, raw_image);
     }
