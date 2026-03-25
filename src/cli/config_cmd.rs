@@ -47,6 +47,7 @@ mod tests {
     use super::*;
     use crate::config::project::*;
     use indexmap::IndexMap;
+    use serial_test::serial;
 
     fn minimal_config() -> ProjectConfig {
         ProjectConfig {
@@ -197,6 +198,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn config_edit_fails_with_nonexistent_editor() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
@@ -241,15 +243,15 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
     match cmd {
         ConfigCommand::Show(args) => {
             let config = crate::config::load_effective_config(&config_path)?;
-            let output = match args.format {
-                ConfigFormat::Toml => {
-                    toml::to_string_pretty(&config).map_err(crate::error::Error::TomlSerialize)?
-                }
-                ConfigFormat::Json => serde_json::to_string_pretty(&config)
-                    .map_err(crate::error::Error::JsonSerialize)?,
-                ConfigFormat::Yaml => serde_yaml::to_string(&config)
-                    .map_err(crate::error::Error::YamlSerialize)?,
-            };
+            let output =
+                match args.format {
+                    ConfigFormat::Toml => toml::to_string_pretty(&config)
+                        .map_err(crate::error::Error::TomlSerialize)?,
+                    ConfigFormat::Json => serde_json::to_string_pretty(&config)
+                        .map_err(crate::error::Error::JsonSerialize)?,
+                    ConfigFormat::Yaml => serde_yaml::to_string(&config)
+                        .map_err(crate::error::Error::YamlSerialize)?,
+                };
             println!("{output}");
         }
         ConfigCommand::Validate => {
