@@ -284,6 +284,7 @@ mod tests {
             services: IndexMap::new(),
             mcp: IndexMap::new(),
             runtime: RuntimeConfig::default(),
+            helm: HelmConfig::default(),
         }
     }
 
