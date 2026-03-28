@@ -27,6 +27,7 @@ pub enum GenerateTarget {
     Firewall,
     Env,
     Mcp,
+    Helm,
 }
 
 pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
@@ -67,7 +68,9 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
                 generate_dockerfile(&config, &output_dir, args.dry_run)?;
                 // Co-generate files the Dockerfile COPYs, but only if they
                 // aren't already in the target list (avoids double output)
-                let firewall_already_targeted = targets.iter().any(|t| matches!(t, GenerateTarget::Firewall));
+                let firewall_already_targeted = targets
+                    .iter()
+                    .any(|t| matches!(t, GenerateTarget::Firewall));
                 if config.firewall.enabled && !firewall_already_targeted {
                     generate_firewall(&config, &output_dir, args.dry_run)?;
                 }
@@ -87,6 +90,9 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
                 if !config.mcp.is_empty() {
                     generate_mcp(&config, &output_dir, args.dry_run)?;
                 }
+            }
+            GenerateTarget::Helm => {
+                generate_helm(&config, &output_dir, args.dry_run)?;
             }
         }
     }
@@ -156,8 +162,7 @@ fn generate_compose(
     dry_run: bool,
 ) -> crate::error::Result<()> {
     let compose = crate::compose::generator::generate(config)?;
-    let yaml = serde_yaml::to_string(&compose)
-        .map_err(crate::error::Error::YamlSerialize)?;
+    let yaml = serde_yaml::to_string(&compose).map_err(crate::error::Error::YamlSerialize)?;
     write_output(output_dir, "docker-compose.yml", &yaml, dry_run)
 }
 
@@ -186,6 +191,30 @@ fn generate_mcp(
 ) -> crate::error::Result<()> {
     let content = crate::mcp::config::generate_mcp_json(config)?;
     write_output(output_dir, ".mcp.json", &content, dry_run)
+}
+
+fn generate_helm(
+    config: &crate::config::ProjectConfig,
+    output_dir: &std::path::Path,
+    dry_run: bool,
+) -> crate::error::Result<()> {
+    let chart = crate::helm::chart::generate(config)?;
+    let chart_dir = output_dir.join("chart").join(&config.project.name);
+
+    for (path, content) in &chart.files {
+        let full_path = chart_dir.join(path);
+        if dry_run {
+            println!("=== chart/{}/{} ===", config.project.name, path);
+            println!("{content}");
+        } else {
+            if let Some(parent) = full_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&full_path, content)?;
+            eprintln!("  wrote {}", full_path.display());
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

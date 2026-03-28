@@ -35,8 +35,14 @@ Overview:
           Interactive init wizard via dialoguer. Commands for generating, managing modules/services/MCP,
           config inspection, and environment diagnostics.
 
-        - **Error Handling** (`src/error.rs`): Centralized error enum with thiserror. 16 typed variants
-          covering config, modules, templates, services, ports, and IO.
+        - **Helm Chart Generation** (`src/helm/`): Generates a full Helm chart directory (Chart.yaml,
+          values.yaml, templates/) from project config. Embedded Go-template YAML files are copied
+          verbatim as Helm templates. Value builders translate config into typed HelmValues that serialize
+          to values.yaml. Supports infrastructure services (Deployments/StatefulSets), agent containers,
+          MCP sidecars, NetworkPolicy, Ingress, Secrets, and ConfigMaps. Opt-in via `--only helm`.
+
+        - **Error Handling** (`src/error.rs`): Centralized error enum with thiserror. 17 typed variants
+          covering config, modules, templates, services, ports, helm, and IO.
 
     data_flow:
         ```
@@ -66,7 +72,17 @@ Overview:
             │
             ├──▶ Env Generator → .env.example
             │
-            └──▶ MCP Config Generator → .mcp.json
+            ├──▶ MCP Config Generator → .mcp.json
+            │
+            └──▶ Helm Chart Generator
+                    ├── Value Builders → HelmValues struct
+                    │     ├── service_values (per infra service)
+                    │     ├── agent_values (agent container)
+                    │     ├── network_policy (firewall → NetworkPolicy)
+                    │     └── secrets (auth → Secret)
+                    ├── HelmValues → values.yaml (via serde_yaml)
+                    ├── Chart.yaml (generated metadata)
+                    └── templates/ (11 embedded Go-template YAML files)
         ```
 
 Features Index:
@@ -106,10 +122,16 @@ Features Index:
         depends_on: [config]
         doc: docs/features/mcp.md
 
+    helm:
+        description: Helm chart generation with typed values, embedded templates, and CLI integration
+        entry_points: [helm::chart::generate, helm::values::build]
+        depends_on: [config, auth, firewall, mcp]
+        doc: docs/features/helm.md
+
     cli:
         description: CLI command structure, interactive wizard, and environment diagnostics
         entry_points: [cli::Cli::parse, wizard::flow::run]
-        depends_on: [config, modules, compose, firewall, auth, mcp]
+        depends_on: [config, modules, compose, firewall, auth, mcp, helm]
         doc: docs/features/cli.md
 
 ## Source Layout
@@ -147,6 +169,28 @@ src/
 │       ├── storage.rs          # minio
 │       ├── monitoring.rs       # prometheus, grafana
 │       └── proxy.rs            # traefik, nginx
+├── helm/
+│   ├── mod.rs                  # Module declarations
+│   ├── types.rs                # HelmValues, ServiceValues, AgentValues, etc. (serde Serialize)
+│   ├── chart.rs                # Top-level chart generator (Chart.yaml + values + templates)
+│   ├── templates.rs            # Embeds all Go-template YAML via include_str!
+│   ├── values.rs               # Orchestrator: builds HelmValues from ProjectConfig
+│   ├── agent_values.rs         # Agent container value builder
+│   ├── service_values.rs       # Per-infrastructure-service value builder
+│   ├── network_policy.rs       # Firewall config → NetworkPolicyValues
+│   ├── secrets.rs              # Auth config → SecretsValues
+│   └── builtin/                # 11 embedded Helm Go-template YAML files
+│       ├── _helpers.tpl        # Standard Helm helpers (name, fullname, labels)
+│       ├── deployment.yaml     # Deployment for stateless services
+│       ├── statefulset.yaml    # StatefulSet for stateful services
+│       ├── service.yaml        # ClusterIP Service per infra service
+│       ├── agent-deployment.yaml # Agent container Deployment
+│       ├── agent-pvc.yaml      # Workspace PVC for agent
+│       ├── secret.yaml         # Secret with auth keys and service credentials
+│       ├── configmap.yaml      # ConfigMap for non-secret agent env vars
+│       ├── networkpolicy.yaml  # NetworkPolicy (conditional)
+│       ├── ingress.yaml        # Ingress (conditional)
+│       └── mcp-deployment.yaml # MCP sidecar Deployments
 ├── firewall/
 │   ├── mod.rs                  # Module exports
 │   ├── generator.rs            # generate() — iptables bash script

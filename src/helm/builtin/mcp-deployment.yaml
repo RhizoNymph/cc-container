@@ -1,0 +1,44 @@
+{{- range $name, $mcp := .Values.mcp }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" $ }}-mcp-{{ $name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: mcp-{{ $name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: mcp-{{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: mcp-{{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $mcp.image }}
+          {{- if $mcp.command }}
+          command: {{ toJson $mcp.command }}
+          {{- end }}
+          env:
+            {{- range $mcp.envFromSecret }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chart.fullname" $ }}-secrets
+                  key: {{ . }}
+            {{- end }}
+          {{- if $mcp.ports }}
+          ports:
+            {{- range $mcp.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .containerPort }}
+              protocol: {{ .protocol }}
+            {{- end }}
+          {{- end }}
+{{- end }}

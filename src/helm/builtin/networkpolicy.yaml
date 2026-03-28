@@ -1,0 +1,45 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "chart.fullname" . }}-egress
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  annotations:
+    cc-container/allowed-domains: {{ join "," .Values.networkPolicy.allowedDomains | quote }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow intra-namespace traffic
+    - to:
+        - podSelector: {}
+    {{- if .Values.networkPolicy.allowDns }}
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- end }}
+    {{- if .Values.networkPolicy.allowSsh }}
+    # Allow SSH (e.g. git over SSH)
+    - to: []
+      ports:
+        - port: 22
+          protocol: TCP
+    {{- end }}
+    {{- range .Values.networkPolicy.allowedCidrs }}
+    # Allow HTTPS/HTTP to CIDR: {{ . }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+    {{- end }}
+{{- end }}
