@@ -5,8 +5,11 @@ use super::user::UserConfig;
 /// User defaults for these would create broken output (e.g. a firewall COPY
 /// without the corresponding init-firewall.sh file).
 const AUTO_MANAGED_MODULES: &[&str] = &[
-    "ubuntu", "debian", "alpine",
-    "claude-code", "codex-cli",
+    "ubuntu",
+    "debian",
+    "alpine",
+    "claude-code",
+    "codex-cli",
     "firewall",
 ];
 
@@ -36,19 +39,22 @@ pub fn merge_configs(
     // contain the key at all.  This avoids overwriting a project that
     // explicitly wrote `base = "ubuntu"` when the user default is "alpine".
     if let Some(base) = defaults.base
-        && !image_field_present(raw_image, "base") {
-            project.image.base = base;
-        }
+        && !image_field_present(raw_image, "base")
+    {
+        project.image.base = base;
+    }
 
     if let Some(shell) = defaults.shell
-        && !image_field_present(raw_image, "shell") {
-            project.image.shell = shell;
-        }
+        && !image_field_present(raw_image, "shell")
+    {
+        project.image.shell = shell;
+    }
 
     if let Some(ref platform) = defaults.platform
-        && !image_field_present(raw_image, "platform") {
-            project.image.platform = platform.clone();
-        }
+        && !image_field_present(raw_image, "platform")
+    {
+        project.image.platform = platform.clone();
+    }
 
     // Inherit base_version only when:
     //  - the project didn't set base_version, AND
@@ -104,22 +110,25 @@ pub fn merge_configs(
     // so that the renderer's final `USER` instruction (which reads
     // config.image.user) stays in sync with the user created by the module.
     if let Some(user_setup) = project.modules.get("user-setup")
-        && let Some(table) = user_setup.as_table() {
-            if !image_field_present(raw_image, "user")
-                && let Some(username) = table.get("username").and_then(|v| v.as_str()) {
-                    project.image.user = username.to_string();
-                }
-            if !image_field_present(raw_image, "shell")
-                && let Some(shell_str) = table.get("shell").and_then(|v| v.as_str()) {
-                    let shell_name = shell_str.rsplit('/').next().unwrap_or(shell_str);
-                    match shell_name {
-                        "bash" => project.image.shell = ShellType::Bash,
-                        "zsh" => project.image.shell = ShellType::Zsh,
-                        "sh" => project.image.shell = ShellType::Sh,
-                        _ => {}
-                    }
-                }
+        && let Some(table) = user_setup.as_table()
+    {
+        if !image_field_present(raw_image, "user")
+            && let Some(username) = table.get("username").and_then(|v| v.as_str())
+        {
+            project.image.user = username.to_string();
         }
+        if !image_field_present(raw_image, "shell")
+            && let Some(shell_str) = table.get("shell").and_then(|v| v.as_str())
+        {
+            let shell_name = shell_str.rsplit('/').next().unwrap_or(shell_str);
+            match shell_name {
+                "bash" => project.image.shell = ShellType::Bash,
+                "zsh" => project.image.shell = ShellType::Zsh,
+                "sh" => project.image.shell = ShellType::Sh,
+                _ => {}
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -390,7 +399,10 @@ nodejs = { version = "18" }
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("version".to_string(), toml::Value::String("20".to_string()));
-                t.insert("global_packages".to_string(), toml::Value::String("typescript".to_string()));
+                t.insert(
+                    "global_packages".to_string(),
+                    toml::Value::String("typescript".to_string()),
+                );
                 t
             }),
         );
@@ -410,10 +422,20 @@ nodejs = { version = "18" }
     fn auto_managed_modules_not_merged() {
         let (mut config, raw_image) = parse_project(MINIMAL);
         let mut modules = IndexMap::new();
-        for name in ["ubuntu", "debian", "alpine", "claude-code", "codex-cli", "firewall"] {
+        for name in [
+            "ubuntu",
+            "debian",
+            "alpine",
+            "claude-code",
+            "codex-cli",
+            "firewall",
+        ] {
             modules.insert(name.to_string(), toml::Value::Table(toml::map::Map::new()));
         }
-        modules.insert("nodejs".to_string(), toml::Value::Table(toml::map::Map::new()));
+        modules.insert(
+            "nodejs".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
         let user = UserConfig {
             defaults: UserDefaults {
                 modules,
@@ -440,7 +462,10 @@ nodejs = { version = "18" }
             "user-setup".to_string(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
-                t.insert("username".to_string(), toml::Value::String("coder".to_string()));
+                t.insert(
+                    "username".to_string(),
+                    toml::Value::String("coder".to_string()),
+                );
                 t
             }),
         );
@@ -462,7 +487,10 @@ nodejs = { version = "18" }
             "user-setup".to_string(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
-                t.insert("shell".to_string(), toml::Value::String("/bin/zsh".to_string()));
+                t.insert(
+                    "shell".to_string(),
+                    toml::Value::String("/bin/zsh".to_string()),
+                );
                 t
             }),
         );
@@ -484,7 +512,10 @@ nodejs = { version = "18" }
             "user-setup".to_string(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
-                t.insert("shell".to_string(), toml::Value::String("/usr/bin/zsh".to_string()));
+                t.insert(
+                    "shell".to_string(),
+                    toml::Value::String("/usr/bin/zsh".to_string()),
+                );
                 t
             }),
         );
@@ -514,7 +545,10 @@ user = "admin"
             "user-setup".to_string(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
-                t.insert("username".to_string(), toml::Value::String("coder".to_string()));
+                t.insert(
+                    "username".to_string(),
+                    toml::Value::String("coder".to_string()),
+                );
                 t
             }),
         );
@@ -544,7 +578,10 @@ shell = "sh"
             "user-setup".to_string(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
-                t.insert("shell".to_string(), toml::Value::String("/bin/zsh".to_string()));
+                t.insert(
+                    "shell".to_string(),
+                    toml::Value::String("/bin/zsh".to_string()),
+                );
                 t
             }),
         );
@@ -580,7 +617,10 @@ shell = "sh"
     fn merge_multiple_fields_simultaneously() {
         let (mut config, raw_image) = parse_project(MINIMAL);
         let mut modules = IndexMap::new();
-        modules.insert("rust".to_string(), toml::Value::Table(toml::map::Map::new()));
+        modules.insert(
+            "rust".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
         let user = UserConfig {
             defaults: UserDefaults {
                 base: Some(BaseOs::Debian),

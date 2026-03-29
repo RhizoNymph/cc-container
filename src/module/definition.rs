@@ -199,7 +199,11 @@ description = "test"
                 cat_str
             );
             let def: ModuleDefinition = toml::from_str(&toml_str).unwrap();
-            assert_eq!(def.module.category, expected, "Failed for category: {}", cat_str);
+            assert_eq!(
+                def.module.category, expected,
+                "Failed for category: {}",
+                cat_str
+            );
         }
     }
 

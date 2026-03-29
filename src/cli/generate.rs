@@ -14,10 +14,6 @@ pub struct GenerateArgs {
     /// Only generate specific file types
     #[arg(long, value_delimiter = ',')]
     pub only: Option<Vec<GenerateTarget>>,
-
-    /// Show diff against existing files before writing
-    #[arg(long)]
-    pub diff: bool,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -31,10 +27,10 @@ pub enum GenerateTarget {
 }
 
 pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
-    let target_dir = global
-        .target_dir
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+    let target_dir = match global.target_dir.clone() {
+        Some(d) => d,
+        None => std::env::current_dir().map_err(crate::error::Error::Io)?,
+    };
 
     let config_path = global
         .config
@@ -59,6 +55,7 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
             GenerateTarget::Env,
             GenerateTarget::Firewall,
             GenerateTarget::Mcp,
+            GenerateTarget::Helm,
         ]
     });
 
@@ -292,7 +289,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Dockerfile]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -316,7 +312,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Compose]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -340,7 +335,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Env]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -364,7 +358,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Firewall]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -396,7 +389,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Firewall]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -420,7 +412,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Mcp]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -444,7 +435,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: None, // default: all targets
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -470,7 +460,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: true,
             only: None,
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -495,7 +484,6 @@ mod tests {
             output: None,
             dry_run: false,
             only: None,
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -530,7 +518,6 @@ mod tests {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Dockerfile]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),
@@ -555,7 +542,6 @@ mod tests {
             output: Some(out_dir.clone()),
             dry_run: false,
             only: Some(vec![GenerateTarget::Env]),
-            diff: false,
         };
         let global = super::super::GlobalOpts {
             target_dir: Some(dir.path().to_path_buf()),

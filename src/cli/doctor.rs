@@ -1,13 +1,9 @@
 use clap::Parser;
 
 #[derive(Parser)]
-pub struct DoctorArgs {
-    /// Show detailed diagnostic output
-    #[arg(long)]
-    pub verbose: bool,
-}
+pub struct DoctorArgs {}
 
-pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
+pub fn run(_args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
     let mut ok = true;
 
     // Check Docker is installed
@@ -15,7 +11,7 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
     let docker_result: Result<std::path::PathBuf, _> = which::which("docker");
     match docker_result {
         Ok(path) => {
-            if args.verbose {
+            if global.verbose > 0 {
                 eprintln!("found at {}", path.display());
             } else {
                 eprintln!("ok");
@@ -34,7 +30,7 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
         .output();
     match compose_check {
         Ok(output) if output.status.success() => {
-            if args.verbose {
+            if global.verbose > 0 {
                 let version = String::from_utf8_lossy(&output.stdout);
                 eprintln!("{}", version.trim());
             } else {
@@ -48,10 +44,10 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
     }
 
     // Check for config file
-    let target_dir = global
-        .target_dir
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+    let target_dir = match global.target_dir.clone() {
+        Some(d) => d,
+        None => std::env::current_dir().map_err(crate::error::Error::Io)?,
+    };
     let config_path = global
         .config
         .clone()
@@ -61,7 +57,7 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
     if config_path.exists() {
         eprintln!("{}", config_path.display());
         // Try to load and validate
-        match crate::config::load_project_config(&config_path) {
+        match crate::config::load_effective_config(&config_path) {
             Ok(config) => {
                 match crate::config::validate::validate_config(&config) {
                     Ok(warnings) => {
@@ -80,7 +76,7 @@ pub fn run(args: &DoctorArgs, global: &super::GlobalOpts) -> crate::error::Resul
                 }
 
                 // Check auth credentials exist for oauth methods
-                check_oauth_credentials(&config, args.verbose);
+                check_oauth_credentials(&config, global.verbose > 0);
             }
             Err(e) => {
                 eprintln!("  Failed to parse: {e}");
@@ -160,7 +156,7 @@ mod tests {
         let config_path = write_config(dir.path());
         let global = make_global_with_config(config_path);
 
-        let args = DoctorArgs { verbose: false };
+        let args = DoctorArgs {};
         // Doctor checks for Docker, which may or may not be installed.
         // We just run it and verify it doesn't panic.
         let _result = run(&args, &global);
@@ -172,7 +168,7 @@ mod tests {
         let missing = dir.path().join("nonexistent.toml");
         let global = make_global_with_config(missing);
 
-        let args = DoctorArgs { verbose: false };
+        let args = DoctorArgs {};
         let _result = run(&args, &global);
     }
 
@@ -180,9 +176,10 @@ mod tests {
     fn doctor_verbose_mode() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
-        let global = make_global_with_config(config_path);
+        let mut global = make_global_with_config(config_path);
+        global.verbose = 1;
 
-        let args = DoctorArgs { verbose: true };
+        let args = DoctorArgs {};
         let _result = run(&args, &global);
     }
 
@@ -193,7 +190,7 @@ mod tests {
         std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
 
         let global = make_global_with_config(config_path);
-        let args = DoctorArgs { verbose: false };
+        let args = DoctorArgs {};
 
         let _result = run(&args, &global);
     }
@@ -234,43 +231,40 @@ mod tests {
     }
 }
 
-fn check_oauth_credentials(
-    config: &crate::config::ProjectConfig,
-    verbose: bool,
-) {
+fn check_oauth_credentials(config: &crate::config::ProjectConfig, verbose: bool) {
     use crate::config::project::{ClaudeAuthMethod, CodexAuthMethod};
 
     if let Some(ref claude_auth) = config.auth.claude
-        && claude_auth.method == ClaudeAuthMethod::Oauth {
-            let cred_path = dirs::home_dir()
-                .map(|h| h.join(".claude").join(".credentials.json"));
-            eprint!("  Claude OAuth credentials: ");
-            match cred_path {
-                Some(p) if p.exists() => {
-                    if verbose {
-                        eprintln!("found ({})", p.display());
-                    } else {
-                        eprintln!("found");
-                    }
+        && claude_auth.method == ClaudeAuthMethod::Oauth
+    {
+        let cred_path = dirs::home_dir().map(|h| h.join(".claude").join(".credentials.json"));
+        eprint!("  Claude OAuth credentials: ");
+        match cred_path {
+            Some(p) if p.exists() => {
+                if verbose {
+                    eprintln!("found ({})", p.display());
+                } else {
+                    eprintln!("found");
                 }
-                _ => eprintln!("NOT FOUND (~/.claude/.credentials.json) — run `claude /login` first"),
             }
+            _ => eprintln!("NOT FOUND (~/.claude/.credentials.json) — run `claude /login` first"),
         }
+    }
 
     if let Some(ref codex_auth) = config.auth.codex
-        && codex_auth.method == CodexAuthMethod::Oauth {
-            let cred_path = dirs::home_dir()
-                .map(|h| h.join(".codex").join("auth.json"));
-            eprint!("  Codex OAuth credentials: ");
-            match cred_path {
-                Some(p) if p.exists() => {
-                    if verbose {
-                        eprintln!("found ({})", p.display());
-                    } else {
-                        eprintln!("found");
-                    }
+        && codex_auth.method == CodexAuthMethod::Oauth
+    {
+        let cred_path = dirs::home_dir().map(|h| h.join(".codex").join("auth.json"));
+        eprint!("  Codex OAuth credentials: ");
+        match cred_path {
+            Some(p) if p.exists() => {
+                if verbose {
+                    eprintln!("found ({})", p.display());
+                } else {
+                    eprintln!("found");
                 }
-                _ => eprintln!("NOT FOUND (~/.codex/auth.json) — run `codex login` first"),
             }
+            _ => eprintln!("NOT FOUND (~/.codex/auth.json) — run `codex login` first"),
         }
+    }
 }

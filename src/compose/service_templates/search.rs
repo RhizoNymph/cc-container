@@ -13,11 +13,22 @@ pub fn elasticsearch(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<S
         )),
         ports: dct::Ports::Short(vec![format!("{host_port}:9200")]),
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("discovery.type".to_string(), Some(dct::SingleValue::String("single-node".to_string()))),
-            ("xpack.security.enabled".to_string(), Some(dct::SingleValue::String("false".to_string()))),
-            ("ES_JAVA_OPTS".to_string(), Some(dct::SingleValue::String("-Xms512m -Xmx512m".to_string()))),
+            (
+                "discovery.type".to_string(),
+                Some(dct::SingleValue::String("single-node".to_string())),
+            ),
+            (
+                "xpack.security.enabled".to_string(),
+                Some(dct::SingleValue::String("false".to_string())),
+            ),
+            (
+                "ES_JAVA_OPTS".to_string(),
+                Some(dct::SingleValue::String("-Xms512m -Xmx512m".to_string())),
+            ),
         ])),
-        volumes: vec![dct::Volumes::Simple("esdata:/usr/share/elasticsearch/data".to_string())],
+        volumes: vec![dct::Volumes::Simple(
+            "esdata:/usr/share/elasticsearch/data".to_string(),
+        )],
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "curl -s http://localhost:9200/_cluster/health || exit 1".to_string(),
@@ -45,14 +56,13 @@ pub fn meilisearch(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
     let host_port = config.port.unwrap_or(7700);
 
     let svc = dct::Service {
-        image: Some(format!(
-            "getmeili/meilisearch:{version}"
-        )),
+        image: Some(format!("getmeili/meilisearch:{version}")),
         ports: dct::Ports::Short(vec![format!("{host_port}:7700")]),
         volumes: vec![dct::Volumes::Simple("meilidata:/meili_data".to_string())],
-        environment: dct::Environment::KvPair(IndexMap::from([
-            ("MEILI_ENV".to_string(), Some(dct::SingleValue::String("development".to_string()))),
-        ])),
+        environment: dct::Environment::KvPair(IndexMap::from([(
+            "MEILI_ENV".to_string(),
+            Some(dct::SingleValue::String("development".to_string())),
+        )])),
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "curl -f http://localhost:7700/health || exit 1".to_string(),
@@ -84,8 +94,16 @@ pub fn typesense(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
         ports: dct::Ports::Short(vec![format!("{host_port}:8108")]),
         volumes: vec![dct::Volumes::Simple("typesensedata:/data".to_string())],
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("TYPESENSE_API_KEY".to_string(), Some(dct::SingleValue::String("${TYPESENSE_API_KEY:-changeme}".to_string()))),
-            ("TYPESENSE_DATA_DIR".to_string(), Some(dct::SingleValue::String("/data".to_string()))),
+            (
+                "TYPESENSE_API_KEY".to_string(),
+                Some(dct::SingleValue::String(
+                    "${TYPESENSE_API_KEY:-changeme}".to_string(),
+                )),
+            ),
+            (
+                "TYPESENSE_DATA_DIR".to_string(),
+                Some(dct::SingleValue::String("/data".to_string())),
+            ),
         ])),
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
