@@ -27,6 +27,7 @@ pub struct AgentValues {
     pub env: IndexMap<String, String>,
     pub env_from_secret: Vec<String>,
     pub volume_mounts: Vec<VolumeMount>,
+    pub volumes: Vec<VolumeDefinition>,
     pub workspace_pvc_size: String,
     pub workspace_mount_path: String,
     pub security_context: SecurityContext,
@@ -95,6 +96,19 @@ pub struct VolumeMount {
     pub mount_path: String,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub read_only: bool,
+}
+
+/// Volume definition for a K8s pod spec.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VolumeDefinition {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pvc_claim_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_name: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub empty_dir: bool,
 }
 
 /// K8s liveness/readiness probe specification.
@@ -386,6 +400,7 @@ mod tests {
                 env: IndexMap::new(),
                 env_from_secret: vec![],
                 volume_mounts: vec![],
+                volumes: vec![],
                 workspace_pvc_size: "10Gi".to_string(),
                 workspace_mount_path: "/workspace".to_string(),
                 security_context: SecurityContext {
@@ -412,5 +427,47 @@ mod tests {
         let yaml = serde_yaml::to_string(&hv).unwrap();
         assert!(!yaml.contains("ingress"));
         assert!(yaml.contains("projectName: test"));
+    }
+
+    #[test]
+    fn volume_definition_pvc_serializes_correctly() {
+        let vd = VolumeDefinition {
+            name: "data".to_string(),
+            pvc_claim_name: Some("my-data-pvc".to_string()),
+            secret_name: None,
+            empty_dir: false,
+        };
+        let yaml = serde_yaml::to_string(&vd).unwrap();
+        assert!(yaml.contains("pvcClaimName: my-data-pvc"));
+        assert!(!yaml.contains("secretName"));
+        assert!(!yaml.contains("emptyDir"));
+    }
+
+    #[test]
+    fn volume_definition_secret_serializes_correctly() {
+        let vd = VolumeDefinition {
+            name: "auth-0".to_string(),
+            pvc_claim_name: None,
+            secret_name: Some("my-secrets".to_string()),
+            empty_dir: false,
+        };
+        let yaml = serde_yaml::to_string(&vd).unwrap();
+        assert!(yaml.contains("secretName: my-secrets"));
+        assert!(!yaml.contains("pvcClaimName"));
+        assert!(!yaml.contains("emptyDir"));
+    }
+
+    #[test]
+    fn volume_definition_empty_dir_serializes_correctly() {
+        let vd = VolumeDefinition {
+            name: "mount-0".to_string(),
+            pvc_claim_name: None,
+            secret_name: None,
+            empty_dir: true,
+        };
+        let yaml = serde_yaml::to_string(&vd).unwrap();
+        assert!(yaml.contains("emptyDir: true"));
+        assert!(!yaml.contains("pvcClaimName"));
+        assert!(!yaml.contains("secretName"));
     }
 }

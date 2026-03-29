@@ -68,6 +68,18 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ include "chart.fullname" $ }}-workspace
+        {{- range $.Values.agent.volumes }}
+        - name: {{ .name }}
+          {{- if .pvcClaimName }}
+          persistentVolumeClaim:
+            claimName: {{ .pvcClaimName }}
+          {{- else if .secretName }}
+          secret:
+            secretName: {{ .secretName }}
+          {{- else if .emptyDir }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
 {{- end }}
 {{- else }}
 ---
@@ -138,4 +150,16 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ include "chart.fullname" . }}-workspace
+        {{- range .Values.agent.volumes }}
+        - name: {{ .name }}
+          {{- if .pvcClaimName }}
+          persistentVolumeClaim:
+            claimName: {{ .pvcClaimName }}
+          {{- else if .secretName }}
+          secret:
+            secretName: {{ .secretName }}
+          {{- else if .emptyDir }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
 {{- end }}

@@ -100,16 +100,12 @@ fn claude_auth_keys(method: ClaudeAuthMethod) -> Vec<SecretKeyRef> {
         ],
         ClaudeAuthMethod::BedrockApiKey => vec![
             SecretKeyRef {
-                key: "AWS_ACCESS_KEY_ID".to_string(),
-                description: "AWS access key ID for Bedrock API key auth".to_string(),
-            },
-            SecretKeyRef {
-                key: "AWS_SECRET_ACCESS_KEY".to_string(),
-                description: "AWS secret access key for Bedrock API key auth".to_string(),
+                key: "AWS_BEARER_TOKEN_BEDROCK".to_string(),
+                description: "AWS bearer token for Bedrock API key auth".to_string(),
             },
             SecretKeyRef {
                 key: "AWS_REGION".to_string(),
-                description: "AWS region for Bedrock API key auth".to_string(),
+                description: "AWS region for Bedrock".to_string(),
             },
         ],
         ClaudeAuthMethod::Vertex => vec![SecretKeyRef {
@@ -122,8 +118,8 @@ fn claude_auth_keys(method: ClaudeAuthMethod) -> Vec<SecretKeyRef> {
                 description: "Proxy/gateway base URL for Claude".to_string(),
             },
             SecretKeyRef {
-                key: "ANTHROPIC_API_KEY".to_string(),
-                description: "API key for Claude proxy/gateway".to_string(),
+                key: "ANTHROPIC_AUTH_TOKEN".to_string(),
+                description: "Auth token for Claude proxy/gateway".to_string(),
             },
         ],
     }
@@ -154,7 +150,7 @@ fn codex_auth_keys(
             },
         ],
         CodexAuthMethod::Custom => {
-            let key = custom_env_key.unwrap_or("OPENAI_API_KEY");
+            let key = custom_env_key.unwrap_or("CUSTOM_API_KEY");
             vec![SecretKeyRef {
                 key: key.to_string(),
                 description: "Custom provider API key for Codex".to_string(),
@@ -250,9 +246,9 @@ mod tests {
         });
         let sv = build(&config);
 
+        assert_eq!(sv.auth_keys.len(), 2);
         let keys: Vec<&str> = sv.auth_keys.iter().map(|k| k.key.as_str()).collect();
-        assert!(keys.contains(&"AWS_ACCESS_KEY_ID"));
-        assert!(keys.contains(&"AWS_SECRET_ACCESS_KEY"));
+        assert!(keys.contains(&"AWS_BEARER_TOKEN_BEDROCK"));
         assert!(keys.contains(&"AWS_REGION"));
     }
 
@@ -278,7 +274,7 @@ mod tests {
 
         let keys: Vec<&str> = sv.auth_keys.iter().map(|k| k.key.as_str()).collect();
         assert!(keys.contains(&"ANTHROPIC_BASE_URL"));
-        assert!(keys.contains(&"ANTHROPIC_API_KEY"));
+        assert!(keys.contains(&"ANTHROPIC_AUTH_TOKEN"));
     }
 
     // -- Codex auth methods --
@@ -344,7 +340,7 @@ mod tests {
         let sv = build(&config);
 
         assert_eq!(sv.auth_keys.len(), 1);
-        assert_eq!(sv.auth_keys[0].key, "OPENAI_API_KEY");
+        assert_eq!(sv.auth_keys[0].key, "CUSTOM_API_KEY");
     }
 
     #[test]

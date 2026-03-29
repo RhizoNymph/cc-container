@@ -1,7 +1,8 @@
 use crate::auth;
 use crate::config::project::{AgentType, ProjectConfig};
 use crate::helm::types::{
-    AgentValues, ImageRef, ResourceLimits, ResourceSpec, SecurityContext, VolumeMount,
+    AgentValues, ImageRef, ResourceLimits, ResourceSpec, SecurityContext, VolumeDefinition,
+    VolumeMount,
 };
 use indexmap::IndexMap;
 
@@ -67,31 +68,54 @@ pub fn build(
         .clone();
     let workspace_mount_path = config.workspace.mount_path.clone();
 
-    // Volume mounts: named volumes from config
+    // Volume mounts and volume definitions built in parallel
     let mut volume_mounts: Vec<VolumeMount> = Vec::new();
+    let mut volumes: Vec<VolumeDefinition> = Vec::new();
+
+    // Named volumes -> PVC
     for (name, vol) in &config.volumes {
         volume_mounts.push(VolumeMount {
             name: name.clone(),
             mount_path: vol.target.clone(),
             read_only: false,
         });
-    }
-
-    // Auth volume mounts (OAuth credential files, etc.)
-    for auth_vol in &auth_reqs.volumes {
-        volume_mounts.push(VolumeMount {
-            name: format!("auth-{}", volume_mounts.len()),
-            mount_path: auth_vol.target.clone(),
-            read_only: auth_vol.read_only,
+        volumes.push(VolumeDefinition {
+            name: name.clone(),
+            pvc_claim_name: Some(format!("{}-{}", config.project.name, name)),
+            secret_name: None,
+            empty_dir: false,
         });
     }
 
-    // Additional workspace mounts
-    for mount in &config.workspace.additional_mounts {
+    // Auth volumes -> Secret
+    for (i, auth_vol) in auth_reqs.volumes.iter().enumerate() {
+        let vol_name = format!("auth-{i}");
         volume_mounts.push(VolumeMount {
-            name: format!("mount-{}", volume_mounts.len()),
+            name: vol_name.clone(),
+            mount_path: auth_vol.target.clone(),
+            read_only: auth_vol.read_only,
+        });
+        volumes.push(VolumeDefinition {
+            name: vol_name,
+            pvc_claim_name: None,
+            secret_name: Some(format!("{}-secrets", config.project.name)),
+            empty_dir: false,
+        });
+    }
+
+    // Additional mounts -> emptyDir
+    for (i, mount) in config.workspace.additional_mounts.iter().enumerate() {
+        let vol_name = format!("mount-{i}");
+        volume_mounts.push(VolumeMount {
+            name: vol_name.clone(),
             mount_path: mount.target.clone(),
             read_only: mount.read_only,
+        });
+        volumes.push(VolumeDefinition {
+            name: vol_name,
+            pvc_claim_name: None,
+            secret_name: None,
+            empty_dir: true,
         });
     }
 
@@ -103,6 +127,7 @@ pub fn build(
         env,
         env_from_secret,
         volume_mounts,
+        volumes,
         workspace_pvc_size,
         workspace_mount_path,
         security_context,
@@ -428,5 +453,117 @@ mod tests {
         assert_eq!(av.agent_type, "both");
         // "both" type doesn't add auth env from secret (caller should split)
         assert!(av.env_from_secret.is_empty());
+    }
+
+    // -- Volume definitions match volume mounts --
+
+    #[test]
+    fn build_volumes_match_volume_mounts_for_named_volumes() {
+        let mut config = minimal_config();
+        config.volumes.insert(
+            "data-vol".to_string(),
+            crate::config::project::VolumeMount {
+                target: "/data".to_string(),
+            },
+        );
+
+        let infra_env = IndexMap::new();
+        let av = build(&config, AgentType::Claude, &infra_env);
+
+        assert_eq!(av.volumes.len(), 1);
+        assert_eq!(av.volume_mounts.len(), 1);
+        assert_eq!(av.volumes[0].name, "data-vol");
+        assert_eq!(av.volume_mounts[0].name, "data-vol");
+        assert_eq!(
+            av.volumes[0].pvc_claim_name,
+            Some("test-project-data-vol".to_string())
+        );
+        assert!(av.volumes[0].secret_name.is_none());
+        assert!(!av.volumes[0].empty_dir);
+    }
+
+    #[test]
+    fn build_volumes_match_volume_mounts_for_auth() {
+        let mut config = minimal_config();
+        config.auth.claude = Some(ClaudeAuthConfig {
+            method: ClaudeAuthMethod::Oauth,
+        });
+
+        let infra_env = IndexMap::new();
+        let av = build(&config, AgentType::Claude, &infra_env);
+
+        // OAuth produces at least one auth volume
+        let auth_vols: Vec<_> = av.volumes.iter().filter(|v| v.name.starts_with("auth-")).collect();
+        let auth_mounts: Vec<_> = av.volume_mounts.iter().filter(|v| v.name.starts_with("auth-")).collect();
+
+        assert!(!auth_vols.is_empty());
+        assert_eq!(auth_vols.len(), auth_mounts.len());
+
+        for (vol, mount) in auth_vols.iter().zip(auth_mounts.iter()) {
+            assert_eq!(vol.name, mount.name);
+            assert_eq!(vol.secret_name, Some("test-project-secrets".to_string()));
+        }
+    }
+
+    #[test]
+    fn build_volumes_match_volume_mounts_for_additional_mounts() {
+        let mut config = minimal_config();
+        config.workspace.additional_mounts.push(MountSpec {
+            source: "/host/tmp".to_string(),
+            target: "/tmp/data".to_string(),
+            read_only: false,
+        });
+
+        let infra_env = IndexMap::new();
+        let av = build(&config, AgentType::Claude, &infra_env);
+
+        let mount_vols: Vec<_> = av.volumes.iter().filter(|v| v.name.starts_with("mount-")).collect();
+        let mount_mounts: Vec<_> = av.volume_mounts.iter().filter(|v| v.name.starts_with("mount-")).collect();
+
+        assert_eq!(mount_vols.len(), 1);
+        assert_eq!(mount_mounts.len(), 1);
+        assert_eq!(mount_vols[0].name, mount_mounts[0].name);
+        assert!(mount_vols[0].empty_dir);
+        assert!(mount_vols[0].pvc_claim_name.is_none());
+        assert!(mount_vols[0].secret_name.is_none());
+    }
+
+    #[test]
+    fn build_volumes_all_types_combined() {
+        let mut config = minimal_config();
+
+        // Named volume
+        config.volumes.insert(
+            "cache".to_string(),
+            crate::config::project::VolumeMount {
+                target: "/cache".to_string(),
+            },
+        );
+
+        // Auth volume (OAuth produces file mounts)
+        config.auth.claude = Some(ClaudeAuthConfig {
+            method: ClaudeAuthMethod::Oauth,
+        });
+
+        // Additional mount
+        config.workspace.additional_mounts.push(MountSpec {
+            source: "/host/scratch".to_string(),
+            target: "/scratch".to_string(),
+            read_only: true,
+        });
+
+        let infra_env = IndexMap::new();
+        let av = build(&config, AgentType::Claude, &infra_env);
+
+        // Every volume_mount must have a matching volume definition by name
+        assert_eq!(av.volumes.len(), av.volume_mounts.len());
+        for mount in &av.volume_mounts {
+            let matching_vol = av.volumes.iter().find(|v| v.name == mount.name);
+            assert!(
+                matching_vol.is_some(),
+                "volume_mount '{}' has no matching volume definition",
+                mount.name,
+            );
+        }
     }
 }
