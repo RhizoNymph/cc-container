@@ -12,9 +12,40 @@ impl std::fmt::Display for ValidationWarning {
     }
 }
 
+fn is_valid_project_name(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+}
+
+fn is_valid_username(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 32
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+}
+
 /// Validate a project config and return any warnings or errors.
 pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<ValidationWarning>> {
     let mut warnings = Vec::new();
+
+    if !is_valid_project_name(&config.project.name) {
+        return Err(crate::error::Error::Other(format!(
+            "project.name '{}' is invalid: must start with alphanumeric and contain only [a-zA-Z0-9._-]",
+            config.project.name
+        )));
+    }
+
+    if !is_valid_username(&config.image.user) {
+        return Err(crate::error::Error::Other(format!(
+            "image.user '{}' is invalid: must be a valid Unix username matching [a-z_][a-z0-9_-]{{0,31}}",
+            config.image.user
+        )));
+    }
 
     // Check that auth is configured for the selected agent type
     match config.agent.agent_type {
@@ -74,15 +105,21 @@ pub fn validate_config(config: &ProjectConfig) -> crate::error::Result<Vec<Valid
 }
 
 /// Parse a port number from `config.extra[key]`, returning `default` if the key
-/// is absent and an error if the value is outside the valid 1–65535 range.
+/// is absent and an error if the value is outside the valid 1–65535 range or
+/// if the value is not an integer.
 fn parse_extra_port(config: &ServiceConfig, key: &str, default: u16) -> crate::error::Result<u16> {
-    match config.extra.get(key).and_then(|v| v.as_integer()) {
-        Some(v) if (1..=65535).contains(&v) => Ok(v as u16),
-        Some(v) => Err(crate::error::Error::InvalidPort {
-            value: v,
-            context: format!("extra.{key}"),
-        }),
+    match config.extra.get(key) {
         None => Ok(default),
+        Some(v) => match v.as_integer() {
+            Some(i) if (1..=65535).contains(&i) => Ok(i as u16),
+            Some(i) => Err(crate::error::Error::InvalidPort {
+                value: i,
+                context: format!("extra.{key}"),
+            }),
+            None => Err(crate::error::Error::Other(format!(
+                "{key} must be an integer, got: {v}"
+            ))),
+        },
     }
 }
 
