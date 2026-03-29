@@ -48,8 +48,9 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
         eprintln!("warning: {w}");
     }
 
-    let output_dir = args.output.clone().unwrap_or(target_dir);
+    let output_dir = args.output.clone().unwrap_or(target_dir.clone());
     std::fs::create_dir_all(&output_dir)?;
+    let project_root = target_dir;
 
     let targets = args.only.clone().unwrap_or_else(|| {
         vec![
@@ -64,7 +65,7 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
     for target in &targets {
         match target {
             GenerateTarget::Dockerfile => {
-                generate_dockerfile(&config, &output_dir, args.dry_run)?;
+                generate_dockerfile(&config, &output_dir, &project_root, args.dry_run)?;
                 // Co-generate files the Dockerfile COPYs, but only if they
                 // aren't already in the target list (avoids double output)
                 let firewall_already_targeted = targets.iter().any(|t| matches!(t, GenerateTarget::Firewall));
@@ -73,7 +74,7 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
                 }
             }
             GenerateTarget::Compose => {
-                generate_compose(&config, &output_dir, args.dry_run)?;
+                generate_compose(&config, &output_dir, &project_root, args.dry_run)?;
             }
             GenerateTarget::Env => {
                 generate_env(&config, &output_dir, args.dry_run)?;
@@ -101,15 +102,17 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
 fn generate_dockerfile(
     config: &crate::config::ProjectConfig,
     output_dir: &std::path::Path,
+    project_root: &std::path::Path,
     dry_run: bool,
 ) -> crate::error::Result<()> {
     use crate::config::project::AgentType;
     use crate::module::{DockerfileGenerator, ModuleRegistry};
 
-    let registry = ModuleRegistry::new();
+    let mut registry = ModuleRegistry::new();
 
     // Load user modules from project directory if present
-    // (registry.load_user_modules is available but we skip for now)
+    let user_modules_dir = project_root.join("modules");
+    registry.load_user_modules(&user_modules_dir)?;
 
     let generator = DockerfileGenerator::new(&registry);
 
@@ -153,9 +156,10 @@ fn write_output(
 fn generate_compose(
     config: &crate::config::ProjectConfig,
     output_dir: &std::path::Path,
+    project_root: &std::path::Path,
     dry_run: bool,
 ) -> crate::error::Result<()> {
-    let compose = crate::compose::generator::generate(config)?;
+    let compose = crate::compose::generator::generate(config, output_dir, project_root)?;
     let yaml = serde_yaml::to_string(&compose)
         .map_err(crate::error::Error::YamlSerialize)?;
     write_output(output_dir, "docker-compose.yml", &yaml, dry_run)

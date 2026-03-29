@@ -22,7 +22,11 @@ Generates typed `docker-compose.yml` files using the `docker-compose-types` crat
 ## Data/Control Flow
 
 ```
-compose::generator::generate(config: &ProjectConfig)
+compose::generator::generate(config: &ProjectConfig, output_dir: &Path, project_root: &Path)
+    │
+    ├── 0. Compute context_path (relative path from output_dir to project_root)
+    │     ├── If output_dir == project_root → "."
+    │     └── Otherwise → diff_paths(project_root, output_dir) (e.g., ".." or "../..")
     │
     ├── 1. Collect enabled infrastructure services
     │     └── For each service in config.services where enabled=true:
@@ -37,11 +41,14 @@ compose::generator::generate(config: &ProjectConfig)
     │     └── For each mcp config: create mcp-{name} compose service
     │
     ├── 4. Build agent service(s)
-    │     ├── agent_service::build(config, agent_type, infra_env, depends_on, dockerfile)
+    │     ├── agent_service::build(config, agent_type, infra_env, depends_on, dockerfile, context_path)
     │     │     ├── Collect auth requirements (env vars + volumes)
     │     │     ├── Inject infrastructure env vars
     │     │     ├── Inject user environment vars
     │     │     ├── Build volume list (workspace + named + auth + additional)
+    │     │     │     └── Workspace mount uses context_path (e.g., "../.:/workspace")
+    │     │     ├── Set build context to context_path
+    │     │     ├── Set env_file paths relative to context_path
     │     │     ├── Set dependency conditions (service_healthy for all infra)
     │     │     └── Apply runtime constraints (CPU, memory, caps, security)
     │     ├── Single agent: service named "agent"
@@ -123,8 +130,8 @@ compose::env::generate_env_example(config: &ProjectConfig)
 The `agent_service::build()` function constructs the agent container with:
 
 **Build step:**
-- Simple (`BuildStep::Simple(".")`) when using default `Dockerfile`
-- Advanced (`BuildStep::Advanced`) with `dockerfile` field for `Dockerfile.claude` or `Dockerfile.codex`
+- Simple (`BuildStep::Simple(".")`) when using default `Dockerfile` and context_path is `"."`
+- Advanced (`BuildStep::Advanced`) with `context` set to `context_path` when the output dir differs from the project root or when using a non-default Dockerfile name
 
 **Environment variables** (in collection order):
 1. Auth requirements from `auth::requirements()`
@@ -132,7 +139,7 @@ The `agent_service::build()` function constructs the agent container with:
 3. User-defined vars from `config.environment.vars`
 
 **Volumes** (in order):
-1. Workspace mount: `./:config.workspace.mount_path`
+1. Workspace mount: `{context_path}/.:{config.workspace.mount_path}`
 2. Named volumes: `{name}:{volume.target}`
 3. Auth volumes (read-only or read-write based on auth method)
 4. Additional workspace mounts with optional read-only flag
@@ -143,7 +150,7 @@ The `agent_service::build()` function constructs the agent container with:
 **Fixed defaults:**
 - `stdin_open: true`, `tty: true` (interactive mode)
 - `restart: "unless-stopped"`
-- `env_file: ".env"` (or custom list from config)
+- `env_file: "{context_path}/.env"` (or custom list from config, with relative paths prefixed by context_path)
 - `working_dir: config.workspace.mount_path`
 
 **Runtime constraints:**
@@ -163,10 +170,10 @@ When multiple database services are enabled:
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `generate()` | `(config: &ProjectConfig) -> Result<dct::Compose>` | Generate complete compose structure |
+| `generate()` | `(config: &ProjectConfig, output_dir: &Path, project_root: &Path) -> Result<dct::Compose>` | Generate complete compose structure |
 | `build_service()` | `(name, config) -> Result<(dct::Service, IndexMap<String, String>)>` | Build individual service + agent env |
 | `list_all()` | `-> Vec<ServiceTemplateInfo>` | List metadata for all 18 service templates |
-| `agent_service::build()` | `(config, agent_type, infra_env, depends_on, dockerfile) -> dct::Service` | Build agent container definition |
+| `agent_service::build()` | `(config, agent_type, infra_env, depends_on, dockerfile, context_path) -> dct::Service` | Build agent container definition |
 | `env::generate_env_example()` | `(config: &ProjectConfig) -> String` | Generate `.env.example` template |
 
 ## Implementation Files

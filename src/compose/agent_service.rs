@@ -4,12 +4,17 @@ use docker_compose_types as dct;
 use indexmap::IndexMap;
 
 /// Build the agent container service definition.
+///
+/// `context_path` is the relative path from the output directory to the project root.
+/// When output == project root this is `"."`. When output is a subdirectory, it will be
+/// something like `".."` so that volume mounts and build contexts point at the right place.
 pub fn build(
     config: &ProjectConfig,
     agent_type: AgentType,
     infra_env: &IndexMap<String, String>,
     depends_on: &[String],
     dockerfile_name: &str,
+    context_path: &str,
 ) -> dct::Service {
     let container_user = &config.image.user;
 
@@ -37,8 +42,8 @@ pub fn build(
 
     // Workspace mount
     volumes.push(dct::Volumes::Simple(format!(
-        "./:{}",
-        config.workspace.mount_path
+        "{}/.:{}",
+        context_path, config.workspace.mount_path
     )));
 
     // Named volumes for persistence
@@ -71,8 +76,17 @@ pub fn build(
         .environment
         .env_files
         .as_ref()
-        .map(|ef| dct::StringOrList::List(ef.files.clone()))
-        .unwrap_or_else(|| dct::StringOrList::Simple(".env".to_string()));
+        .map(|ef| {
+            let prefixed: Vec<String> = ef.files.iter().map(|f| {
+                if f.starts_with('/') {
+                    f.clone()
+                } else {
+                    format!("{context_path}/{f}")
+                }
+            }).collect();
+            dct::StringOrList::List(prefixed)
+        })
+        .unwrap_or_else(|| dct::StringOrList::Simple(format!("{context_path}/.env")));
 
     // depends_on
     let depends = if depends_on.is_empty() {
@@ -90,14 +104,20 @@ pub fn build(
     };
 
     // Build step: use AdvancedBuildStep when a non-default Dockerfile is needed
-    let build_step = if dockerfile_name == "Dockerfile" {
-        dct::BuildStep::Simple(".".to_string())
-    } else {
+    // or when context_path differs from "." (output dir != project root)
+    let needs_advanced = dockerfile_name != "Dockerfile" || context_path != ".";
+    let build_step = if needs_advanced {
         dct::BuildStep::Advanced(dct::AdvancedBuildStep {
-            context: ".".to_string(),
-            dockerfile: Some(dockerfile_name.to_string()),
+            context: context_path.to_string(),
+            dockerfile: if dockerfile_name == "Dockerfile" {
+                None
+            } else {
+                Some(dockerfile_name.to_string())
+            },
             ..Default::default()
         })
+    } else {
+        dct::BuildStep::Simple(".".to_string())
     };
 
     // Build deploy config if cpu_limit is set
@@ -195,7 +215,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         // Build step should be simple "."
         match &svc.build_ {
@@ -213,10 +233,10 @@ mod tests {
         // restart policy
         assert_eq!(svc.restart, Some("unless-stopped".to_string()));
 
-        // Default env_file should be ".env"
+        // Default env_file should be "./.env"
         match &svc.env_file {
-            Some(dct::StringOrList::Simple(s)) => assert_eq!(s, ".env"),
-            _ => panic!("Expected simple .env env_file"),
+            Some(dct::StringOrList::Simple(s)) => assert_eq!(s, "./.env"),
+            _ => panic!("Expected simple ./.env env_file"),
         }
     }
 
@@ -226,7 +246,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile.claude");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile.claude", ".");
 
         match &svc.build_ {
             Some(dct::BuildStep::Advanced(adv)) => {
@@ -246,7 +266,7 @@ mod tests {
         ]);
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("DATABASE_URL"));
@@ -262,7 +282,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on = vec!["postgres".to_string(), "redis".to_string()];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::DependsOnOptions::Conditional(deps) = &svc.depends_on {
             assert_eq!(deps.len(), 2);
@@ -279,7 +299,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::DependsOnOptions::Conditional(deps) = &svc.depends_on {
             assert!(deps.is_empty());
@@ -297,7 +317,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert_eq!(
@@ -326,7 +346,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -348,7 +368,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -359,7 +379,7 @@ mod tests {
             })
             .collect();
 
-        assert!(vol_strs.contains(&"./:/app".to_string()));
+        assert!(vol_strs.contains(&"./.:/app".to_string()));
         assert_eq!(svc.working_dir, Some("/app".to_string()));
     }
 
@@ -380,7 +400,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -405,7 +425,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("ANTHROPIC_API_KEY"));
@@ -424,7 +444,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         // OAuth mounts a credentials file
         let vol_strs: Vec<String> = svc
@@ -453,7 +473,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Codex, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Codex, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("OPENAI_API_KEY"));
@@ -472,13 +492,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         match &svc.env_file {
             Some(dct::StringOrList::List(files)) => {
                 assert_eq!(files.len(), 2);
-                assert!(files.contains(&".env.local".to_string()));
-                assert!(files.contains(&".env.production".to_string()));
+                assert!(files.contains(&"./.env.local".to_string()));
+                assert!(files.contains(&"./.env.production".to_string()));
             }
             _ => panic!("Expected list of env files"),
         }
@@ -496,7 +516,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         assert_eq!(svc.cap_add, vec!["SYS_PTRACE".to_string()]);
         assert_eq!(svc.cap_drop, vec!["NET_RAW".to_string()]);
@@ -513,7 +533,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         let deploy = svc.deploy.unwrap();
         let resources = deploy.resources.unwrap();
@@ -527,7 +547,7 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         assert!(svc.deploy.is_none());
     }
@@ -538,13 +558,128 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(!env.contains_key("ANTHROPIC_API_KEY"));
             assert!(!env.contains_key("OPENAI_API_KEY"));
         } else {
             panic!("Expected KvPair environment");
+        }
+    }
+
+    // --- context_path tests ---
+
+    #[test]
+    fn test_build_context_path_dot_is_backward_compatible() {
+        let config = minimal_config();
+        let infra_env = IndexMap::new();
+        let depends_on: Vec<String> = vec![];
+
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", ".");
+
+        // Build step should be simple "." when context_path is "." and Dockerfile is default
+        match &svc.build_ {
+            Some(dct::BuildStep::Simple(ctx)) => assert_eq!(ctx, "."),
+            _ => panic!("Expected simple build step for context_path='.'"),
+        }
+
+        // Workspace volume should start with "./"
+        let vol_strs: Vec<String> = svc
+            .volumes
+            .iter()
+            .filter_map(|v| match v {
+                dct::Volumes::Simple(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(vol_strs.iter().any(|v| v.starts_with("./.")));
+
+        // Default env_file should be "./.env"
+        match &svc.env_file {
+            Some(dct::StringOrList::Simple(s)) => assert_eq!(s, "./.env"),
+            _ => panic!("Expected simple ./.env env_file"),
+        }
+    }
+
+    #[test]
+    fn test_build_context_path_parent_dir() {
+        let config = minimal_config();
+        let infra_env = IndexMap::new();
+        let depends_on: Vec<String> = vec![];
+
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", "..");
+
+        // Build step should be advanced because context_path != "."
+        match &svc.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, "..");
+                // Dockerfile name is default, so no explicit dockerfile field
+                assert_eq!(adv.dockerfile, None);
+            }
+            _ => panic!("Expected advanced build step for context_path='..'"),
+        }
+
+        // Workspace volume
+        let vol_strs: Vec<String> = svc
+            .volumes
+            .iter()
+            .filter_map(|v| match v {
+                dct::Volumes::Simple(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            vol_strs.iter().any(|v| v.starts_with("../.:/workspace")),
+            "Workspace mount should use context_path: {:?}",
+            vol_strs
+        );
+
+        // Default env_file
+        match &svc.env_file {
+            Some(dct::StringOrList::Simple(s)) => assert_eq!(s, "../.env"),
+            _ => panic!("Expected simple ../.env env_file"),
+        }
+    }
+
+    #[test]
+    fn test_build_context_path_with_env_files() {
+        let mut config = minimal_config();
+        config.environment.env_files = Some(EnvFilesConfig {
+            files: vec![".env.local".to_string(), "/absolute/path/.env".to_string()],
+        });
+
+        let infra_env = IndexMap::new();
+        let depends_on: Vec<String> = vec![];
+
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile", "..");
+
+        match &svc.env_file {
+            Some(dct::StringOrList::List(files)) => {
+                assert_eq!(files.len(), 2);
+                // Relative path should be prefixed
+                assert!(files.contains(&"../.env.local".to_string()));
+                // Absolute path should NOT be prefixed
+                assert!(files.contains(&"/absolute/path/.env".to_string()));
+            }
+            _ => panic!("Expected list of env files"),
+        }
+    }
+
+    #[test]
+    fn test_build_context_path_non_default_dockerfile() {
+        let config = minimal_config();
+        let infra_env = IndexMap::new();
+        let depends_on: Vec<String> = vec![];
+
+        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile.claude", "..");
+
+        match &svc.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, "..");
+                assert_eq!(adv.dockerfile, Some("Dockerfile.claude".to_string()));
+            }
+            _ => panic!("Expected advanced build step"),
         }
     }
 }
