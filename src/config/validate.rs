@@ -101,7 +101,10 @@ fn all_ports_for_service(
 
     // Secondary ports from service templates (configurable via extra)
     match name {
-        "cockroachdb" => ports.push((8080, format!("{name} admin UI"))),
+        "cockroachdb" => {
+            let admin_port = parse_extra_port(config, "admin_port", 8080)?;
+            ports.push((admin_port, format!("{name} admin UI")));
+        }
         "rabbitmq" => {
             let mgmt_port = parse_extra_port(config, "management_port", 15672)?;
             ports.push((mgmt_port, format!("{name} management")));
@@ -114,7 +117,10 @@ fn all_ports_for_service(
             let monitoring_port = parse_extra_port(config, "monitoring_port", 8222)?;
             ports.push((monitoring_port, format!("{name} monitoring")));
         }
-        "traefik" => ports.push((8080, format!("{name} dashboard"))),
+        "traefik" => {
+            let dashboard_port = parse_extra_port(config, "dashboard_port", 8080)?;
+            ports.push((dashboard_port, format!("{name} dashboard")));
+        }
         "minio" => {
             let console_port = parse_extra_port(config, "console_port", 9001)?;
             ports.push((console_port, format!("{name} console")));

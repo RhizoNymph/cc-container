@@ -12,9 +12,7 @@ pub fn redis(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
         ports: dct::Ports::Short(vec![format!("{host_port}:6379")]),
         volumes: vec![dct::Volumes::Simple("redisdata:/data".to_string())],
         healthcheck: Some(dct::Healthcheck {
-            test: Some(dct::HealthcheckTest::Single(
-                "redis-cli ping".to_string(),
-            )),
+            test: Some(dct::HealthcheckTest::Single("redis-cli ping".to_string())),
             interval: Some("10s".to_string()),
             timeout: Some("5s".to_string()),
             retries: 5,
@@ -24,10 +22,7 @@ pub fn redis(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
         ..Default::default()
     };
 
-    let agent_env = IndexMap::from([(
-        "REDIS_URL".to_string(),
-        "redis://redis:6379".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("REDIS_URL".to_string(), "redis://redis:6379".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -41,7 +36,7 @@ pub fn memcached(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
         ports: dct::Ports::Short(vec![format!("{host_port}:11211")]),
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
-                "echo stats | nc localhost 11211 || exit 1".to_string(),
+                "echo stats | busybox nc 127.0.0.1 11211 || exit 1".to_string(),
             )),
             interval: Some("10s".to_string()),
             timeout: Some("5s".to_string()),
@@ -52,10 +47,7 @@ pub fn memcached(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
         ..Default::default()
     };
 
-    let agent_env = IndexMap::from([(
-        "MEMCACHED_URL".to_string(),
-        "memcached:11211".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("MEMCACHED_URL".to_string(), "memcached:11211".to_string())]);
 
     Ok((svc, agent_env))
 }

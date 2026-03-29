@@ -45,7 +45,9 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
             infra_env.insert("DATABASE_URL".to_string(), url);
         }
         _ => {
-            eprintln!("warning: multiple services set DATABASE_URL; using service-specific env vars");
+            eprintln!(
+                "warning: multiple services set DATABASE_URL; using service-specific env vars"
+            );
             for (name, url) in &db_url_sources {
                 let specific_key = format!("{}_URL", name.to_uppercase());
                 infra_env.insert(specific_key, url.clone());
@@ -67,7 +69,17 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
 
         let mut mcp_env: IndexMap<String, Option<dct::SingleValue>> = IndexMap::new();
         for env_var in &mcp_config.env {
-            mcp_env.insert(env_var.clone(), Some(dct::SingleValue::String(format!("${{{env_var}}}"))));
+            if let Some((key, value)) = env_var.split_once('=') {
+                mcp_env.insert(
+                    key.to_string(),
+                    Some(dct::SingleValue::String(value.to_string())),
+                );
+            } else {
+                mcp_env.insert(
+                    env_var.clone(),
+                    Some(dct::SingleValue::String(format!("${{{env_var}}}"))),
+                );
+            }
         }
 
         let mcp_volumes: Vec<dct::Volumes> = mcp_config
@@ -136,14 +148,19 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
         if let Some(svc) = svc_opt {
             for vol in &svc.volumes {
                 if let dct::Volumes::Simple(v) = vol
-                    && let Some((vol_name, _)) = v.split_once(':') {
-                        // Only add named volumes (not paths starting with . or /)
-                        if !vol_name.starts_with('.') && !vol_name.starts_with('/') && !vol_name.starts_with('~') && !vol_name.contains('$') {
-                            top_volumes
-                                .entry(vol_name.to_string())
-                                .or_insert(dct::MapOrEmpty::Empty);
-                        }
+                    && let Some((vol_name, _)) = v.split_once(':')
+                {
+                    // Only add named volumes (not paths starting with . or /)
+                    if !vol_name.starts_with('.')
+                        && !vol_name.starts_with('/')
+                        && !vol_name.starts_with('~')
+                        && !vol_name.contains('$')
+                    {
+                        top_volumes
+                            .entry(vol_name.to_string())
+                            .or_insert(dct::MapOrEmpty::Empty);
                     }
+                }
             }
         }
     }
@@ -532,7 +549,11 @@ mod tests {
         for agent_name in &["agent-claude", "agent-codex"] {
             let agent = services.get(*agent_name).unwrap().as_ref().unwrap();
             if let dct::Environment::KvPair(env) = &agent.environment {
-                assert!(env.contains_key("REDIS_URL"), "{} missing REDIS_URL", agent_name);
+                assert!(
+                    env.contains_key("REDIS_URL"),
+                    "{} missing REDIS_URL",
+                    agent_name
+                );
             } else {
                 panic!("Expected KvPair environment for {}", agent_name);
             }
@@ -582,10 +603,24 @@ mod tests {
     fn test_generate_all_service_types() {
         let mut config = minimal_config();
         let service_names = vec![
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
 
         for name in &service_names {
@@ -625,7 +660,13 @@ mod tests {
         );
 
         let compose = generate(&config).unwrap();
-        let mcp = compose.services.0.get("mcp-test").unwrap().as_ref().unwrap();
+        let mcp = compose
+            .services
+            .0
+            .get("mcp-test")
+            .unwrap()
+            .as_ref()
+            .unwrap();
         assert!(mcp.command.is_none());
     }
 }
