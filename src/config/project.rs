@@ -728,7 +728,10 @@ method = "password"
         assert_eq!(ClaudeAuthMethod::ApiKey.to_string(), "api-key");
         assert_eq!(ClaudeAuthMethod::Oauth.to_string(), "oauth");
         assert_eq!(ClaudeAuthMethod::Bedrock.to_string(), "bedrock");
-        assert_eq!(ClaudeAuthMethod::BedrockApiKey.to_string(), "bedrock-api-key");
+        assert_eq!(
+            ClaudeAuthMethod::BedrockApiKey.to_string(),
+            "bedrock-api-key"
+        );
         assert_eq!(ClaudeAuthMethod::Vertex.to_string(), "vertex");
         assert_eq!(ClaudeAuthMethod::Proxy.to_string(), "proxy");
     }
@@ -759,8 +762,14 @@ allow_dns = false
 "#;
         let config: ProjectConfig = toml::from_str(toml_str).unwrap();
         assert!(config.firewall.enabled);
-        assert_eq!(config.firewall.allowed_domains, vec!["github.com", "api.anthropic.com"]);
-        assert_eq!(config.firewall.allowed_cidrs, vec!["10.0.0.0/8", "172.16.0.0/12"]);
+        assert_eq!(
+            config.firewall.allowed_domains,
+            vec!["github.com", "api.anthropic.com"]
+        );
+        assert_eq!(
+            config.firewall.allowed_cidrs,
+            vec!["10.0.0.0/8", "172.16.0.0/12"]
+        );
         assert!(!config.firewall.allow_ssh);
         assert!(!config.firewall.allow_dns);
     }
@@ -798,7 +807,10 @@ target = "/container/cache"
         assert_eq!(config.workspace.mount_path, "/code");
         assert_eq!(config.workspace.additional_mounts.len(), 2);
         assert_eq!(config.workspace.additional_mounts[0].source, "/host/data");
-        assert_eq!(config.workspace.additional_mounts[0].target, "/container/data");
+        assert_eq!(
+            config.workspace.additional_mounts[0].target,
+            "/container/data"
+        );
         assert!(config.workspace.additional_mounts[0].read_only);
         assert!(!config.workspace.additional_mounts[1].read_only);
     }
@@ -1066,7 +1078,10 @@ cap_add = ["NET_ADMIN"]
 "#;
         let config: ProjectConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.project.name, "full-project");
-        assert_eq!(config.project.description.as_deref(), Some("A comprehensive test"));
+        assert_eq!(
+            config.project.description.as_deref(),
+            Some("A comprehensive test")
+        );
         assert_eq!(config.agent.agent_type, AgentType::Both);
         assert_eq!(config.agent.claude_version, "1.0.0");
         assert_eq!(config.agent.codex_version, "2.0.0");
@@ -1142,7 +1157,10 @@ type = "claude"
 key = "value"
 "#;
         let result: Result<ProjectConfig, _> = toml::from_str(toml_str);
-        assert!(result.is_err(), "deny_unknown_fields should reject unknown top-level sections");
+        assert!(
+            result.is_err(),
+            "deny_unknown_fields should reject unknown top-level sections"
+        );
     }
 
     #[test]
@@ -1190,7 +1208,10 @@ ingress_class = "nginx"
         assert_eq!(config.helm.namespace.as_deref(), Some("dev-agents"));
         assert_eq!(config.helm.storage_class.as_deref(), Some("ssd"));
         assert_eq!(config.helm.default_pvc_size, "50Gi");
-        assert_eq!(config.helm.ingress_host.as_deref(), Some("agent.dev.internal"));
+        assert_eq!(
+            config.helm.ingress_host.as_deref(),
+            Some("agent.dev.internal")
+        );
         assert_eq!(config.helm.ingress_class.as_deref(), Some("nginx"));
     }
 
@@ -1205,7 +1226,10 @@ type = "claude"
 image_registry = "docker.io/myteam"
 "#;
         let config: ProjectConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.helm.image_registry.as_deref(), Some("docker.io/myteam"));
+        assert_eq!(
+            config.helm.image_registry.as_deref(),
+            Some("docker.io/myteam")
+        );
         assert_eq!(config.helm.image_tag, "latest");
         assert_eq!(config.helm.default_pvc_size, "10Gi");
         assert!(config.helm.namespace.is_none());

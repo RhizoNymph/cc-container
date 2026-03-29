@@ -35,7 +35,8 @@ pub fn run(args: &InitArgs, global: &super::GlobalOpts) -> crate::error::Result<
     if config_path.exists() {
         eprintln!("Config file already exists: {}", config_path.display());
         return Err(crate::error::Error::Other(
-            "cc-container.toml already exists. Remove it first or use a different directory.".to_string(),
+            "cc-container.toml already exists. Remove it first or use a different directory."
+                .to_string(),
         ));
     }
 
@@ -171,7 +172,8 @@ mod tests {
     #[test]
     fn default_config_uses_dir_name_as_project_name() {
         let dir = tempfile::tempdir().unwrap();
-        let expected_name = dir.path()
+        let expected_name = dir
+            .path()
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap()
@@ -389,7 +391,9 @@ fn generate_template_config(
 
     let auth = match agent_type {
         AgentType::Claude => AuthConfig {
-            claude: Some(ClaudeAuthConfig { method: ClaudeAuthMethod::ApiKey }),
+            claude: Some(ClaudeAuthConfig {
+                method: ClaudeAuthMethod::ApiKey,
+            }),
             codex: None,
         },
         AgentType::Codex => AuthConfig {
@@ -402,7 +406,9 @@ fn generate_template_config(
             }),
         },
         AgentType::Both => AuthConfig {
-            claude: Some(ClaudeAuthConfig { method: ClaudeAuthMethod::ApiKey }),
+            claude: Some(ClaudeAuthConfig {
+                method: ClaudeAuthMethod::ApiKey,
+            }),
             codex: Some(CodexAuthConfig {
                 method: CodexAuthMethod::ApiKey,
                 azure_endpoint: None,
@@ -422,7 +428,10 @@ fn generate_template_config(
     }
 
     ProjectConfig {
-        project: ProjectMeta { name: project_name, description: None },
+        project: ProjectMeta {
+            name: project_name,
+            description: None,
+        },
         agent: AgentConfig {
             agent_type,
             claude_version: "latest".to_string(),

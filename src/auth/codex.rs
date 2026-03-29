@@ -54,10 +54,7 @@ fn azure_requirements(auth: &CodexAuthConfig) -> AuthRequirements {
     ];
 
     if let Some(ref endpoint) = auth.azure_endpoint {
-        env_vars.insert(
-            "AZURE_OPENAI_ENDPOINT".to_string(),
-            endpoint.clone(),
-        );
+        env_vars.insert("AZURE_OPENAI_ENDPOINT".to_string(), endpoint.clone());
         env_lines.push(format!("# Azure endpoint: {}", endpoint));
     }
 
@@ -74,10 +71,7 @@ fn custom_requirements(auth: &CodexAuthConfig) -> AuthRequirements {
         .clone()
         .unwrap_or_else(|| "CUSTOM_API_KEY".to_string());
 
-    let mut env_vars = IndexMap::from([(
-        env_key.clone(),
-        format!("${{{}}}", env_key),
-    )]);
+    let mut env_vars = IndexMap::from([(env_key.clone(), format!("${{{}}}", env_key))]);
 
     if let Some(ref base_url) = auth.custom_base_url {
         env_vars.insert("OPENAI_BASE_URL".to_string(), base_url.clone());
@@ -136,10 +130,11 @@ mod tests {
     #[test]
     fn api_key_env_example_mentions_openai() {
         let req = requirements(&make_config(CodexAuthMethod::ApiKey), "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("OPENAI_API_KEY")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("OPENAI_API_KEY"))
+        );
     }
 
     #[test]
@@ -171,19 +166,17 @@ mod tests {
     #[test]
     fn oauth_volume_target_uses_container_user() {
         let req = requirements(&make_config(CodexAuthMethod::Oauth), "charlie");
-        assert_eq!(
-            req.volumes[0].target,
-            "/home/charlie/.codex/auth.json"
-        );
+        assert_eq!(req.volumes[0].target, "/home/charlie/.codex/auth.json");
     }
 
     #[test]
     fn oauth_env_example_mentions_no_env_vars() {
         let req = requirements(&make_config(CodexAuthMethod::Oauth), "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("No env vars needed")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("No env vars needed"))
+        );
     }
 
     // ── Azure ────────────────────────────────────────────────────────
@@ -238,10 +231,11 @@ mod tests {
             custom_base_url: None,
         };
         let req = requirements(&cfg, "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("https://my-resource.openai.azure.com")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("https://my-resource.openai.azure.com"))
+        );
     }
 
     #[test]
@@ -333,10 +327,7 @@ mod tests {
         let req = requirements(&cfg, "dev");
 
         assert_eq!(req.env_vars.len(), 2);
-        assert_eq!(
-            req.env_vars.get("OLLAMA_KEY").unwrap(),
-            "${OLLAMA_KEY}"
-        );
+        assert_eq!(req.env_vars.get("OLLAMA_KEY").unwrap(), "${OLLAMA_KEY}");
         assert_eq!(
             req.env_vars.get("OPENAI_BASE_URL").unwrap(),
             "http://localhost:11434/v1"
@@ -352,10 +343,11 @@ mod tests {
             custom_base_url: None,
         };
         let req = requirements(&cfg, "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("TOGETHER_API_KEY")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("TOGETHER_API_KEY"))
+        );
     }
 
     #[test]
@@ -367,10 +359,11 @@ mod tests {
             custom_base_url: Some("https://api.together.xyz/v1".to_string()),
         };
         let req = requirements(&cfg, "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("https://api.together.xyz/v1")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("https://api.together.xyz/v1"))
+        );
     }
 
     #[test]

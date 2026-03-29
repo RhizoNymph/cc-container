@@ -236,7 +236,10 @@ mod tests {
     fn test_env_example_postgres_custom_password_env() {
         let mut config = minimal_config();
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("MY_PG_PASS".to_string()));
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("MY_PG_PASS".to_string()),
+        );
 
         config.services.insert(
             "postgres".to_string(),
@@ -366,8 +369,14 @@ mod tests {
     fn test_env_example_mysql_custom_password_envs() {
         let mut config = minimal_config();
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("CUSTOM_PW".to_string()));
-        extra.insert("root_password_env".to_string(), toml::Value::String("CUSTOM_ROOT_PW".to_string()));
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("CUSTOM_PW".to_string()),
+        );
+        extra.insert(
+            "root_password_env".to_string(),
+            toml::Value::String("CUSTOM_ROOT_PW".to_string()),
+        );
 
         config.services.insert(
             "mysql".to_string(),
@@ -388,8 +397,14 @@ mod tests {
     fn test_env_example_mariadb_custom_password_envs() {
         let mut config = minimal_config();
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("MDB_PW".to_string()));
-        extra.insert("root_password_env".to_string(), toml::Value::String("MDB_ROOT_PW".to_string()));
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("MDB_PW".to_string()),
+        );
+        extra.insert(
+            "root_password_env".to_string(),
+            toml::Value::String("MDB_ROOT_PW".to_string()),
+        );
 
         config.services.insert(
             "mariadb".to_string(),

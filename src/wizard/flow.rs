@@ -64,7 +64,10 @@ pub fn run(target: &Path) -> crate::error::Result<ProjectConfig> {
         let (name, version) = lang_map[*idx];
         let mut params = toml::map::Map::new();
         if !version.is_empty() {
-            params.insert("version".to_string(), toml::Value::String(version.to_string()));
+            params.insert(
+                "version".to_string(),
+                toml::Value::String(version.to_string()),
+            );
         }
         modules.insert(name.to_string(), toml::Value::Table(params));
     }

@@ -234,43 +234,40 @@ mod tests {
     }
 }
 
-fn check_oauth_credentials(
-    config: &crate::config::ProjectConfig,
-    verbose: bool,
-) {
+fn check_oauth_credentials(config: &crate::config::ProjectConfig, verbose: bool) {
     use crate::config::project::{ClaudeAuthMethod, CodexAuthMethod};
 
     if let Some(ref claude_auth) = config.auth.claude
-        && claude_auth.method == ClaudeAuthMethod::Oauth {
-            let cred_path = dirs::home_dir()
-                .map(|h| h.join(".claude").join(".credentials.json"));
-            eprint!("  Claude OAuth credentials: ");
-            match cred_path {
-                Some(p) if p.exists() => {
-                    if verbose {
-                        eprintln!("found ({})", p.display());
-                    } else {
-                        eprintln!("found");
-                    }
+        && claude_auth.method == ClaudeAuthMethod::Oauth
+    {
+        let cred_path = dirs::home_dir().map(|h| h.join(".claude").join(".credentials.json"));
+        eprint!("  Claude OAuth credentials: ");
+        match cred_path {
+            Some(p) if p.exists() => {
+                if verbose {
+                    eprintln!("found ({})", p.display());
+                } else {
+                    eprintln!("found");
                 }
-                _ => eprintln!("NOT FOUND (~/.claude/.credentials.json) — run `claude /login` first"),
             }
+            _ => eprintln!("NOT FOUND (~/.claude/.credentials.json) — run `claude /login` first"),
         }
+    }
 
     if let Some(ref codex_auth) = config.auth.codex
-        && codex_auth.method == CodexAuthMethod::Oauth {
-            let cred_path = dirs::home_dir()
-                .map(|h| h.join(".codex").join("auth.json"));
-            eprint!("  Codex OAuth credentials: ");
-            match cred_path {
-                Some(p) if p.exists() => {
-                    if verbose {
-                        eprintln!("found ({})", p.display());
-                    } else {
-                        eprintln!("found");
-                    }
+        && codex_auth.method == CodexAuthMethod::Oauth
+    {
+        let cred_path = dirs::home_dir().map(|h| h.join(".codex").join("auth.json"));
+        eprint!("  Codex OAuth credentials: ");
+        match cred_path {
+            Some(p) if p.exists() => {
+                if verbose {
+                    eprintln!("found ({})", p.display());
+                } else {
+                    eprintln!("found");
                 }
-                _ => eprintln!("NOT FOUND (~/.codex/auth.json) — run `codex login` first"),
             }
+            _ => eprintln!("NOT FOUND (~/.codex/auth.json) — run `codex login` first"),
         }
+    }
 }

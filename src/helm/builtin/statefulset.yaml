@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: {{ $name }}
-          image: "{{ $svc.image.repository }}:{{ $svc.image.tag }}"
+          image: "{{ include "chart.imageRef" $svc.image }}"
           imagePullPolicy: {{ $svc.image.pullPolicy }}
           ports:
             {{- range $svc.ports }}
@@ -39,6 +39,13 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+          {{- range $key, $secretKey := $svc.envFromSecret }}
+          - name: {{ $key }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "chart.fullname" $ }}-secrets
+                key: {{ $secretKey }}
+          {{- end }}
           livenessProbe:
             exec:
               command: {{ toJson $svc.healthcheck.command }}

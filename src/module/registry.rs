@@ -64,10 +64,13 @@ impl ModuleRegistry {
                 }
                 let template = std::fs::read_to_string(&template_path)?;
 
-                self.modules.insert(name, ModuleEntry {
-                    definition,
-                    template,
-                });
+                self.modules.insert(
+                    name,
+                    ModuleEntry {
+                        definition,
+                        template,
+                    },
+                );
             }
         }
 
@@ -110,15 +113,29 @@ mod tests {
 
         let expected = vec![
             // Base
-            "ubuntu", "debian", "alpine",
+            "ubuntu",
+            "debian",
+            "alpine",
             // Lang
-            "node", "python", "rust", "go", "java", "ruby", "dotnet", "zig", "cpp",
+            "node",
+            "python",
+            "rust",
+            "go",
+            "java",
+            "ruby",
+            "dotnet",
+            "zig",
+            "cpp",
             // Tool
-            "git", "build-essential", "docker-cli",
+            "git",
+            "build-essential",
+            "docker-cli",
             // Agent
-            "claude-code", "codex-cli",
+            "claude-code",
+            "codex-cli",
             // Security
-            "user-setup", "firewall",
+            "user-setup",
+            "firewall",
         ];
 
         for name in &expected {
@@ -178,7 +195,9 @@ mod tests {
             );
         }
 
-        let lang_modules = ["node", "python", "rust", "go", "java", "ruby", "dotnet", "zig", "cpp"];
+        let lang_modules = [
+            "node", "python", "rust", "go", "java", "ruby", "dotnet", "zig", "cpp",
+        ];
         for name in &lang_modules {
             let entry = registry.get(name).unwrap();
             assert_eq!(
@@ -252,16 +271,58 @@ mod tests {
         let registry = ModuleRegistry::new();
 
         let ubuntu = registry.get("ubuntu").unwrap();
-        assert!(ubuntu.definition.module.dependencies.conflicts.contains(&"debian".to_string()));
-        assert!(ubuntu.definition.module.dependencies.conflicts.contains(&"alpine".to_string()));
+        assert!(
+            ubuntu
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"debian".to_string())
+        );
+        assert!(
+            ubuntu
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"alpine".to_string())
+        );
 
         let debian = registry.get("debian").unwrap();
-        assert!(debian.definition.module.dependencies.conflicts.contains(&"ubuntu".to_string()));
-        assert!(debian.definition.module.dependencies.conflicts.contains(&"alpine".to_string()));
+        assert!(
+            debian
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"ubuntu".to_string())
+        );
+        assert!(
+            debian
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"alpine".to_string())
+        );
 
         let alpine = registry.get("alpine").unwrap();
-        assert!(alpine.definition.module.dependencies.conflicts.contains(&"ubuntu".to_string()));
-        assert!(alpine.definition.module.dependencies.conflicts.contains(&"debian".to_string()));
+        assert!(
+            alpine
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"ubuntu".to_string())
+        );
+        assert!(
+            alpine
+                .definition
+                .module
+                .dependencies
+                .conflicts
+                .contains(&"debian".to_string())
+        );
     }
 
     #[test]
@@ -270,13 +331,23 @@ mod tests {
 
         let claude = registry.get("claude-code").unwrap();
         assert!(
-            claude.definition.module.dependencies.requires.contains(&"node".to_string()),
+            claude
+                .definition
+                .module
+                .dependencies
+                .requires
+                .contains(&"node".to_string()),
             "claude-code should require node"
         );
 
         let codex = registry.get("codex-cli").unwrap();
         assert!(
-            codex.definition.module.dependencies.requires.contains(&"node".to_string()),
+            codex
+                .definition
+                .module
+                .dependencies
+                .requires
+                .contains(&"node".to_string()),
             "codex-cli should require node"
         );
     }

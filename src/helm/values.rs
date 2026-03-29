@@ -17,6 +17,7 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
     // Build infrastructure services and collect agent env vars
     let mut services = IndexMap::new();
     let mut infra_env: IndexMap<String, String> = IndexMap::new();
+    let mut infra_env_from_secret: IndexMap<String, String> = IndexMap::new();
     let mut db_url_sources: Vec<(String, String)> = Vec::new();
 
     for (name, svc_config) in &config.services {
@@ -24,7 +25,8 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
             continue;
         }
 
-        let (svc_values, agent_env) = crate::helm::service_values::build_service(name, svc_config)?;
+        let (svc_values, agent_env, agent_env_secret) =
+            crate::helm::service_values::build_service(name, svc_config)?;
         services.insert(name.clone(), svc_values);
 
         for (key, val) in agent_env {
@@ -33,6 +35,10 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
             } else {
                 infra_env.insert(key, val);
             }
+        }
+
+        for (key, val) in agent_env_secret {
+            infra_env_from_secret.insert(key, val);
         }
     }
 
@@ -56,7 +62,17 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
     }
 
     // Build agent values
-    let agent = crate::helm::agent_values::build(config, config.agent.agent_type, &infra_env);
+    let mut agent = crate::helm::agent_values::build(config, config.agent.agent_type, &infra_env);
+
+    // Add infrastructure service env vars that should come from the K8s Secret
+    for (key, secret_key) in &infra_env_from_secret {
+        agent.env_from_secret.push(key.clone());
+        // Also remove from plain env if it was added there
+        agent.env.shift_remove(key);
+        // Ensure the secret key is tracked (agent_env_from_secret maps env var -> secret key)
+        // The secret itself is populated in secrets.rs
+        let _ = secret_key;
+    }
 
     // Build network policy
     let network_policy = crate::helm::network_policy::build(config);
@@ -106,5 +122,6 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
         network_policy,
         secrets,
         ingress,
+        storage_class: config.helm.storage_class.clone(),
     })
 }
