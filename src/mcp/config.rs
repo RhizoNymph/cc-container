@@ -42,9 +42,7 @@ pub fn generate_mcp_json(config: &ProjectConfig) -> crate::error::Result<String>
         );
     }
 
-    let mcp_json = McpConfig {
-        mcp_servers,
-    };
+    let mcp_json = McpConfig { mcp_servers };
 
     Ok(serde_json::to_string_pretty(&mcp_json)?)
 }

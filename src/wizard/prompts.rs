@@ -1,4 +1,4 @@
-use dialoguer::{FuzzySelect, Input, MultiSelect, Confirm};
+use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
 pub fn select_agent_type() -> dialoguer::Result<usize> {
     FuzzySelect::new()

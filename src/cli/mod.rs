@@ -99,8 +99,8 @@ pub(crate) fn parse_key_val(s: &str) -> Result<(String, String), String> {
 
 #[cfg(test)]
 mod tests {
-    use clap::Parser;
     use super::*;
+    use clap::Parser;
 
     // --- parse_key_val helper ---
 
@@ -187,9 +187,13 @@ mod tests {
 
     #[test]
     fn parse_generate_output() {
-        let cli = Cli::try_parse_from(["cc-container", "generate", "--output", "/tmp/out"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "generate", "--output", "/tmp/out"]).unwrap();
         if let Commands::Generate(args) = &cli.command {
-            assert_eq!(args.output.as_deref(), Some(std::path::Path::new("/tmp/out")));
+            assert_eq!(
+                args.output.as_deref(),
+                Some(std::path::Path::new("/tmp/out"))
+            );
         } else {
             panic!("expected Generate command");
         }
@@ -197,7 +201,8 @@ mod tests {
 
     #[test]
     fn parse_generate_only_dockerfile() {
-        let cli = Cli::try_parse_from(["cc-container", "generate", "--only", "dockerfile"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "generate", "--only", "dockerfile"]).unwrap();
         if let Commands::Generate(args) = &cli.command {
             let targets = args.only.as_ref().unwrap();
             assert_eq!(targets.len(), 1);
@@ -209,7 +214,13 @@ mod tests {
 
     #[test]
     fn parse_generate_only_multiple() {
-        let cli = Cli::try_parse_from(["cc-container", "generate", "--only", "dockerfile,compose,env"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "cc-container",
+            "generate",
+            "--only",
+            "dockerfile,compose,env",
+        ])
+        .unwrap();
         if let Commands::Generate(args) = &cli.command {
             let targets = args.only.as_ref().unwrap();
             assert_eq!(targets.len(), 3);
@@ -233,12 +244,16 @@ mod tests {
     #[test]
     fn parse_module_list() {
         let cli = Cli::try_parse_from(["cc-container", "module", "list"]).unwrap();
-        assert!(matches!(cli.command, Commands::Module(module::ModuleCommand::List(_))));
+        assert!(matches!(
+            cli.command,
+            Commands::Module(module::ModuleCommand::List(_))
+        ));
     }
 
     #[test]
     fn parse_module_list_with_category() {
-        let cli = Cli::try_parse_from(["cc-container", "module", "list", "--category", "lang"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "module", "list", "--category", "lang"]).unwrap();
         if let Commands::Module(module::ModuleCommand::List(args)) = &cli.command {
             assert_eq!(args.category.as_deref(), Some("lang"));
         } else {
@@ -269,8 +284,14 @@ mod tests {
     #[test]
     fn parse_module_add_with_params() {
         let cli = Cli::try_parse_from([
-            "cc-container", "module", "add", "node", "--with", "version=22",
-        ]).unwrap();
+            "cc-container",
+            "module",
+            "add",
+            "node",
+            "--with",
+            "version=22",
+        ])
+        .unwrap();
         if let Commands::Module(module::ModuleCommand::Add(args)) = &cli.command {
             assert_eq!(args.names, vec!["node"]);
             assert_eq!(args.params.len(), 1);
@@ -292,7 +313,8 @@ mod tests {
 
     #[test]
     fn parse_module_create() {
-        let cli = Cli::try_parse_from(["cc-container", "module", "create", "--name", "mymod"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "module", "create", "--name", "mymod"]).unwrap();
         if let Commands::Module(module::ModuleCommand::Create(args)) = &cli.command {
             assert_eq!(args.name, "mymod");
             assert!(args.dir.is_none());
@@ -304,8 +326,15 @@ mod tests {
     #[test]
     fn parse_module_create_with_dir() {
         let cli = Cli::try_parse_from([
-            "cc-container", "module", "create", "--name", "mymod", "--dir", "/tmp/mods",
-        ]).unwrap();
+            "cc-container",
+            "module",
+            "create",
+            "--name",
+            "mymod",
+            "--dir",
+            "/tmp/mods",
+        ])
+        .unwrap();
         if let Commands::Module(module::ModuleCommand::Create(args)) = &cli.command {
             assert_eq!(args.dir.as_deref(), Some(std::path::Path::new("/tmp/mods")));
         } else {
@@ -318,12 +347,17 @@ mod tests {
     #[test]
     fn parse_service_list() {
         let cli = Cli::try_parse_from(["cc-container", "service", "list"]).unwrap();
-        assert!(matches!(cli.command, Commands::Service(service::ServiceCommand::List(_))));
+        assert!(matches!(
+            cli.command,
+            Commands::Service(service::ServiceCommand::List(_))
+        ));
     }
 
     #[test]
     fn parse_service_list_with_category() {
-        let cli = Cli::try_parse_from(["cc-container", "service", "list", "--category", "database"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "service", "list", "--category", "database"])
+                .unwrap();
         if let Commands::Service(service::ServiceCommand::List(args)) = &cli.command {
             assert_eq!(args.category.as_deref(), Some("database"));
         } else {
@@ -343,7 +377,8 @@ mod tests {
 
     #[test]
     fn parse_service_add() {
-        let cli = Cli::try_parse_from(["cc-container", "service", "add", "postgres", "redis"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "service", "add", "postgres", "redis"]).unwrap();
         if let Commands::Service(service::ServiceCommand::Add(args)) = &cli.command {
             assert_eq!(args.names, vec!["postgres", "redis"]);
         } else {
@@ -354,8 +389,14 @@ mod tests {
     #[test]
     fn parse_service_add_with_params() {
         let cli = Cli::try_parse_from([
-            "cc-container", "service", "add", "postgres", "--with", "port=5433",
-        ]).unwrap();
+            "cc-container",
+            "service",
+            "add",
+            "postgres",
+            "--with",
+            "port=5433",
+        ])
+        .unwrap();
         if let Commands::Service(service::ServiceCommand::Add(args)) = &cli.command {
             assert_eq!(args.params.len(), 1);
             assert_eq!(args.params[0], ("port".to_string(), "5433".to_string()));
@@ -385,8 +426,14 @@ mod tests {
     #[test]
     fn parse_mcp_add() {
         let cli = Cli::try_parse_from([
-            "cc-container", "mcp", "add", "my-server", "--image", "myimg:latest",
-        ]).unwrap();
+            "cc-container",
+            "mcp",
+            "add",
+            "my-server",
+            "--image",
+            "myimg:latest",
+        ])
+        .unwrap();
         if let Commands::Mcp(mcp::McpCommand::Add(args)) = &cli.command {
             assert_eq!(args.name, "my-server");
             assert_eq!(args.image, "myimg:latest");
@@ -399,12 +446,20 @@ mod tests {
     #[test]
     fn parse_mcp_add_with_all_options() {
         let cli = Cli::try_parse_from([
-            "cc-container", "mcp", "add", "my-server",
-            "--image", "myimg:latest",
-            "--command", "serve",
-            "--env", "KEY=VAL",
-            "--volume", "/host:/container",
-        ]).unwrap();
+            "cc-container",
+            "mcp",
+            "add",
+            "my-server",
+            "--image",
+            "myimg:latest",
+            "--command",
+            "serve",
+            "--env",
+            "KEY=VAL",
+            "--volume",
+            "/host:/container",
+        ])
+        .unwrap();
         if let Commands::Mcp(mcp::McpCommand::Add(args)) = &cli.command {
             assert_eq!(args.name, "my-server");
             assert_eq!(args.image, "myimg:latest");
@@ -431,12 +486,16 @@ mod tests {
     #[test]
     fn parse_config_show() {
         let cli = Cli::try_parse_from(["cc-container", "config", "show"]).unwrap();
-        assert!(matches!(cli.command, Commands::Config(config_cmd::ConfigCommand::Show(_))));
+        assert!(matches!(
+            cli.command,
+            Commands::Config(config_cmd::ConfigCommand::Show(_))
+        ));
     }
 
     #[test]
     fn parse_config_show_json() {
-        let cli = Cli::try_parse_from(["cc-container", "config", "show", "--format", "json"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "config", "show", "--format", "json"]).unwrap();
         if let Commands::Config(config_cmd::ConfigCommand::Show(args)) = &cli.command {
             assert!(matches!(args.format, config_cmd::ConfigFormat::Json));
         } else {
@@ -446,7 +505,8 @@ mod tests {
 
     #[test]
     fn parse_config_show_yaml() {
-        let cli = Cli::try_parse_from(["cc-container", "config", "show", "--format", "yaml"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "config", "show", "--format", "yaml"]).unwrap();
         if let Commands::Config(config_cmd::ConfigCommand::Show(args)) = &cli.command {
             assert!(matches!(args.format, config_cmd::ConfigFormat::Yaml));
         } else {
@@ -457,12 +517,16 @@ mod tests {
     #[test]
     fn parse_config_validate() {
         let cli = Cli::try_parse_from(["cc-container", "config", "validate"]).unwrap();
-        assert!(matches!(cli.command, Commands::Config(config_cmd::ConfigCommand::Validate)));
+        assert!(matches!(
+            cli.command,
+            Commands::Config(config_cmd::ConfigCommand::Validate)
+        ));
     }
 
     #[test]
     fn parse_config_set() {
-        let cli = Cli::try_parse_from(["cc-container", "config", "set", "agent.type", "codex"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["cc-container", "config", "set", "agent.type", "codex"]).unwrap();
         if let Commands::Config(config_cmd::ConfigCommand::Set(args)) = &cli.command {
             assert_eq!(args.key, "agent.type");
             assert_eq!(args.value, "codex");
@@ -484,7 +548,10 @@ mod tests {
     #[test]
     fn parse_config_edit() {
         let cli = Cli::try_parse_from(["cc-container", "config", "edit"]).unwrap();
-        assert!(matches!(cli.command, Commands::Config(config_cmd::ConfigCommand::Edit)));
+        assert!(matches!(
+            cli.command,
+            Commands::Config(config_cmd::ConfigCommand::Edit)
+        ));
     }
 
     // --- Doctor command ---
@@ -530,14 +597,22 @@ mod tests {
 
     #[test]
     fn parse_global_target_dir() {
-        let cli = Cli::try_parse_from(["cc-container", "--target-dir", "/tmp/proj", "generate"]).unwrap();
-        assert_eq!(cli.global.target_dir.as_deref(), Some(std::path::Path::new("/tmp/proj")));
+        let cli =
+            Cli::try_parse_from(["cc-container", "--target-dir", "/tmp/proj", "generate"]).unwrap();
+        assert_eq!(
+            cli.global.target_dir.as_deref(),
+            Some(std::path::Path::new("/tmp/proj"))
+        );
     }
 
     #[test]
     fn parse_global_config() {
-        let cli = Cli::try_parse_from(["cc-container", "--config", "/tmp/cfg.toml", "generate"]).unwrap();
-        assert_eq!(cli.global.config.as_deref(), Some(std::path::Path::new("/tmp/cfg.toml")));
+        let cli =
+            Cli::try_parse_from(["cc-container", "--config", "/tmp/cfg.toml", "generate"]).unwrap();
+        assert_eq!(
+            cli.global.config.as_deref(),
+            Some(std::path::Path::new("/tmp/cfg.toml"))
+        );
     }
 
     #[test]
@@ -585,8 +660,12 @@ mod tests {
     #[test]
     fn parse_global_opts_after_subcommand() {
         // Global opts can appear after the subcommand
-        let cli = Cli::try_parse_from(["cc-container", "generate", "--target-dir", "/tmp", "-v"]).unwrap();
-        assert_eq!(cli.global.target_dir.as_deref(), Some(std::path::Path::new("/tmp")));
+        let cli = Cli::try_parse_from(["cc-container", "generate", "--target-dir", "/tmp", "-v"])
+            .unwrap();
+        assert_eq!(
+            cli.global.target_dir.as_deref(),
+            Some(std::path::Path::new("/tmp"))
+        );
         assert_eq!(cli.global.verbose, 1);
     }
 

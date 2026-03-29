@@ -76,24 +76,114 @@ pub fn build_service(
 /// List all available service templates.
 pub fn list_all() -> Vec<ServiceTemplateInfo> {
     vec![
-        ServiceTemplateInfo { name: "postgres", description: "PostgreSQL database", category: ServiceCategory::Database, default_port: 5432 },
-        ServiceTemplateInfo { name: "mysql", description: "MySQL database", category: ServiceCategory::Database, default_port: 3306 },
-        ServiceTemplateInfo { name: "mariadb", description: "MariaDB database", category: ServiceCategory::Database, default_port: 3306 },
-        ServiceTemplateInfo { name: "mongodb", description: "MongoDB database", category: ServiceCategory::Database, default_port: 27017 },
-        ServiceTemplateInfo { name: "cockroachdb", description: "CockroachDB database", category: ServiceCategory::Database, default_port: 26257 },
-        ServiceTemplateInfo { name: "redis", description: "Redis in-memory store", category: ServiceCategory::Cache, default_port: 6379 },
-        ServiceTemplateInfo { name: "memcached", description: "Memcached cache", category: ServiceCategory::Cache, default_port: 11211 },
-        ServiceTemplateInfo { name: "rabbitmq", description: "RabbitMQ message broker", category: ServiceCategory::Queue, default_port: 5672 },
-        ServiceTemplateInfo { name: "kafka", description: "Apache Kafka (via Redpanda)", category: ServiceCategory::Queue, default_port: 9092 },
-        ServiceTemplateInfo { name: "nats", description: "NATS messaging", category: ServiceCategory::Queue, default_port: 4222 },
-        ServiceTemplateInfo { name: "elasticsearch", description: "Elasticsearch search engine", category: ServiceCategory::Search, default_port: 9200 },
-        ServiceTemplateInfo { name: "meilisearch", description: "Meilisearch search engine", category: ServiceCategory::Search, default_port: 7700 },
-        ServiceTemplateInfo { name: "typesense", description: "Typesense search engine", category: ServiceCategory::Search, default_port: 8108 },
-        ServiceTemplateInfo { name: "minio", description: "MinIO S3-compatible storage", category: ServiceCategory::Storage, default_port: 9000 },
-        ServiceTemplateInfo { name: "prometheus", description: "Prometheus monitoring", category: ServiceCategory::Monitoring, default_port: 9090 },
-        ServiceTemplateInfo { name: "grafana", description: "Grafana dashboards", category: ServiceCategory::Monitoring, default_port: 3000 },
-        ServiceTemplateInfo { name: "traefik", description: "Traefik reverse proxy", category: ServiceCategory::Proxy, default_port: 80 },
-        ServiceTemplateInfo { name: "nginx", description: "Nginx reverse proxy", category: ServiceCategory::Proxy, default_port: 80 },
+        ServiceTemplateInfo {
+            name: "postgres",
+            description: "PostgreSQL database",
+            category: ServiceCategory::Database,
+            default_port: 5432,
+        },
+        ServiceTemplateInfo {
+            name: "mysql",
+            description: "MySQL database",
+            category: ServiceCategory::Database,
+            default_port: 3306,
+        },
+        ServiceTemplateInfo {
+            name: "mariadb",
+            description: "MariaDB database",
+            category: ServiceCategory::Database,
+            default_port: 3306,
+        },
+        ServiceTemplateInfo {
+            name: "mongodb",
+            description: "MongoDB database",
+            category: ServiceCategory::Database,
+            default_port: 27017,
+        },
+        ServiceTemplateInfo {
+            name: "cockroachdb",
+            description: "CockroachDB database",
+            category: ServiceCategory::Database,
+            default_port: 26257,
+        },
+        ServiceTemplateInfo {
+            name: "redis",
+            description: "Redis in-memory store",
+            category: ServiceCategory::Cache,
+            default_port: 6379,
+        },
+        ServiceTemplateInfo {
+            name: "memcached",
+            description: "Memcached cache",
+            category: ServiceCategory::Cache,
+            default_port: 11211,
+        },
+        ServiceTemplateInfo {
+            name: "rabbitmq",
+            description: "RabbitMQ message broker",
+            category: ServiceCategory::Queue,
+            default_port: 5672,
+        },
+        ServiceTemplateInfo {
+            name: "kafka",
+            description: "Apache Kafka (via Redpanda)",
+            category: ServiceCategory::Queue,
+            default_port: 9092,
+        },
+        ServiceTemplateInfo {
+            name: "nats",
+            description: "NATS messaging",
+            category: ServiceCategory::Queue,
+            default_port: 4222,
+        },
+        ServiceTemplateInfo {
+            name: "elasticsearch",
+            description: "Elasticsearch search engine",
+            category: ServiceCategory::Search,
+            default_port: 9200,
+        },
+        ServiceTemplateInfo {
+            name: "meilisearch",
+            description: "Meilisearch search engine",
+            category: ServiceCategory::Search,
+            default_port: 7700,
+        },
+        ServiceTemplateInfo {
+            name: "typesense",
+            description: "Typesense search engine",
+            category: ServiceCategory::Search,
+            default_port: 8108,
+        },
+        ServiceTemplateInfo {
+            name: "minio",
+            description: "MinIO S3-compatible storage",
+            category: ServiceCategory::Storage,
+            default_port: 9000,
+        },
+        ServiceTemplateInfo {
+            name: "prometheus",
+            description: "Prometheus monitoring",
+            category: ServiceCategory::Monitoring,
+            default_port: 9090,
+        },
+        ServiceTemplateInfo {
+            name: "grafana",
+            description: "Grafana dashboards",
+            category: ServiceCategory::Monitoring,
+            default_port: 3000,
+        },
+        ServiceTemplateInfo {
+            name: "traefik",
+            description: "Traefik reverse proxy",
+            category: ServiceCategory::Proxy,
+            default_port: 80,
+        },
+        ServiceTemplateInfo {
+            name: "nginx",
+            description: "Nginx reverse proxy",
+            category: ServiceCategory::Proxy,
+            default_port: 80,
+        },
     ]
 }
 
@@ -125,7 +215,11 @@ mod tests {
         let mut unique_names = names.clone();
         unique_names.sort();
         unique_names.dedup();
-        assert_eq!(names.len(), unique_names.len(), "Service names must be unique");
+        assert_eq!(
+            names.len(),
+            unique_names.len(),
+            "Service names must be unique"
+        );
     }
 
     #[test]
@@ -145,28 +239,40 @@ mod tests {
     #[test]
     fn test_list_all_database_count() {
         let all = list_all();
-        let db_count = all.iter().filter(|s| s.category == ServiceCategory::Database).count();
+        let db_count = all
+            .iter()
+            .filter(|s| s.category == ServiceCategory::Database)
+            .count();
         assert_eq!(db_count, 5);
     }
 
     #[test]
     fn test_list_all_cache_count() {
         let all = list_all();
-        let count = all.iter().filter(|s| s.category == ServiceCategory::Cache).count();
+        let count = all
+            .iter()
+            .filter(|s| s.category == ServiceCategory::Cache)
+            .count();
         assert_eq!(count, 2);
     }
 
     #[test]
     fn test_list_all_queue_count() {
         let all = list_all();
-        let count = all.iter().filter(|s| s.category == ServiceCategory::Queue).count();
+        let count = all
+            .iter()
+            .filter(|s| s.category == ServiceCategory::Queue)
+            .count();
         assert_eq!(count, 3);
     }
 
     #[test]
     fn test_list_all_search_count() {
         let all = list_all();
-        let count = all.iter().filter(|s| s.category == ServiceCategory::Search).count();
+        let count = all
+            .iter()
+            .filter(|s| s.category == ServiceCategory::Search)
+            .count();
         assert_eq!(count, 3);
     }
 
@@ -185,10 +291,24 @@ mod tests {
     fn test_build_service_all_known_services() {
         let config = default_service_config();
         let names = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
 
         for name in &names {

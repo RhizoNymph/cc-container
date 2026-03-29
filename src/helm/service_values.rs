@@ -146,10 +146,7 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         env: IndexMap::from([
             ("MYSQL_DATABASE".to_string(), db.clone()),
             ("MYSQL_USER".to_string(), user.clone()),
-            (
-                "MYSQL_PASSWORD".to_string(),
-                format!("${{{password_env}}}"),
-            ),
+            ("MYSQL_PASSWORD".to_string(), format!("${{{password_env}}}")),
             (
                 "MYSQL_ROOT_PASSWORD".to_string(),
                 format!("${{{root_password_env}}}"),
@@ -303,10 +300,7 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         },
         category: "database".to_string(),
         stateful: true,
-        ports: vec![
-            port("sql", 26257),
-            port("http", 8080),
-        ],
+        ports: vec![port("sql", 26257), port("http", 8080)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -378,10 +372,7 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "REDIS_URL".to_string(),
-        "redis://redis:6379".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("REDIS_URL".to_string(), "redis://redis:6379".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -419,10 +410,7 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "MEMCACHED_URL".to_string(),
-        "memcached:11211".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("MEMCACHED_URL".to_string(), "memcached:11211".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -440,10 +428,7 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         },
         category: "queue".to_string(),
         stateful: true,
-        ports: vec![
-            port("amqp", 5672),
-            port("management", 15672),
-        ],
+        ports: vec![port("amqp", 5672), port("management", 15672)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -488,10 +473,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         },
         category: "queue".to_string(),
         stateful: true,
-        ports: vec![
-            port("kafka", 9092),
-            port("schema-registry", 8081),
-        ],
+        ports: vec![port("kafka", 9092), port("schema-registry", 8081)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -525,10 +507,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "KAFKA_BROKERS".to_string(),
-        "kafka:9092".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("KAFKA_BROKERS".to_string(), "kafka:9092".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -546,10 +525,7 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
         },
         category: "queue".to_string(),
         stateful: true,
-        ports: vec![
-            port("nats", 4222),
-            port("monitoring", 8222),
-        ],
+        ports: vec![port("nats", 4222), port("monitoring", 8222)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -577,10 +553,7 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "NATS_URL".to_string(),
-        "nats://nats:4222".to_string(),
-    )]);
+    let agent_env = IndexMap::from([("NATS_URL".to_string(), "nats://nats:4222".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -601,14 +574,8 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
         ports: vec![port("http", 9200)],
         env: IndexMap::from([
             ("discovery.type".to_string(), "single-node".to_string()),
-            (
-                "xpack.security.enabled".to_string(),
-                "false".to_string(),
-            ),
-            (
-                "ES_JAVA_OPTS".to_string(),
-                "-Xms512m -Xmx512m".to_string(),
-            ),
+            ("xpack.security.enabled".to_string(), "false".to_string()),
+            ("ES_JAVA_OPTS".to_string(), "-Xms512m -Xmx512m".to_string()),
         ]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -749,10 +716,7 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         },
         category: "storage".to_string(),
         stateful: true,
-        ports: vec![
-            port("api", 9000),
-            port("console", 9001),
-        ],
+        ports: vec![port("api", 9000), port("console", 9001)],
         env: IndexMap::from([
             (
                 "MINIO_ROOT_USER".to_string(),
@@ -890,10 +854,8 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "GRAFANA_URL".to_string(),
-        "http://grafana:3000".to_string(),
-    )]);
+    let agent_env =
+        IndexMap::from([("GRAFANA_URL".to_string(), "http://grafana:3000".to_string())]);
 
     Ok((svc, agent_env))
 }
@@ -1006,10 +968,24 @@ mod tests {
     fn build_service_all_known_services_succeed() {
         let config = default_config();
         let names = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
         for name in &names {
             let result = build_service(name, &config);
@@ -1033,7 +1009,12 @@ mod tests {
         assert_eq!(svc.pvc_size, "10Gi");
 
         // Healthcheck
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("pg_isready")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("pg_isready"))
+        );
         assert_eq!(svc.healthcheck.initial_delay_seconds, 30);
         assert_eq!(svc.healthcheck.failure_threshold, 5);
 
@@ -1066,9 +1047,18 @@ mod tests {
     #[test]
     fn postgres_custom_database_and_user() {
         let mut extra = IndexMap::new();
-        extra.insert("database".to_string(), toml::Value::String("mydb".to_string()));
-        extra.insert("user".to_string(), toml::Value::String("myuser".to_string()));
-        let config = ServiceConfig { extra, ..default_config() };
+        extra.insert(
+            "database".to_string(),
+            toml::Value::String("mydb".to_string()),
+        );
+        extra.insert(
+            "user".to_string(),
+            toml::Value::String("myuser".to_string()),
+        );
+        let config = ServiceConfig {
+            extra,
+            ..default_config()
+        };
         let (svc, env) = build_service("postgres", &config).unwrap();
 
         assert_eq!(svc.env["POSTGRES_DB"], "mydb");
@@ -1080,8 +1070,14 @@ mod tests {
     #[test]
     fn postgres_custom_password_env() {
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("MY_PG_PASS".to_string()));
-        let config = ServiceConfig { extra, ..default_config() };
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("MY_PG_PASS".to_string()),
+        );
+        let config = ServiceConfig {
+            extra,
+            ..default_config()
+        };
         let (svc, env) = build_service("postgres", &config).unwrap();
 
         assert_eq!(svc.env["POSTGRES_PASSWORD"], "${MY_PG_PASS}");
@@ -1104,7 +1100,12 @@ mod tests {
         assert!(svc.env.contains_key("MYSQL_USER"));
         assert!(svc.env.contains_key("MYSQL_PASSWORD"));
         assert!(svc.env.contains_key("MYSQL_ROOT_PASSWORD"));
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("mysqladmin")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("mysqladmin"))
+        );
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/mysql");
         assert!(env["DATABASE_URL"].starts_with("mysql://dev:"));
     }
@@ -1112,9 +1113,18 @@ mod tests {
     #[test]
     fn mysql_custom_password_envs() {
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("CUSTOM_PW".to_string()));
-        extra.insert("root_password_env".to_string(), toml::Value::String("CUSTOM_ROOT_PW".to_string()));
-        let config = ServiceConfig { extra, ..default_config() };
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("CUSTOM_PW".to_string()),
+        );
+        extra.insert(
+            "root_password_env".to_string(),
+            toml::Value::String("CUSTOM_ROOT_PW".to_string()),
+        );
+        let config = ServiceConfig {
+            extra,
+            ..default_config()
+        };
         let (svc, _) = build_service("mysql", &config).unwrap();
 
         assert_eq!(svc.env["MYSQL_PASSWORD"], "${CUSTOM_PW}");
@@ -1134,7 +1144,12 @@ mod tests {
         assert!(svc.env.contains_key("MARIADB_DATABASE"));
         assert!(svc.env.contains_key("MARIADB_PASSWORD"));
         assert!(svc.env.contains_key("MARIADB_ROOT_PASSWORD"));
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("mariadb-admin")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("mariadb-admin"))
+        );
         assert!(env["DATABASE_URL"].contains("@mariadb:3306/devdb"));
     }
 
@@ -1150,7 +1165,12 @@ mod tests {
         assert!(svc.stateful);
         assert_eq!(svc.ports[0].container_port, 27017);
         assert_eq!(svc.volume_mounts[0].mount_path, "/data/db");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("mongosh")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("mongosh"))
+        );
         assert_eq!(env["MONGODB_URL"], "mongodb://mongodb:27017");
     }
 
@@ -1169,7 +1189,12 @@ mod tests {
         assert_eq!(svc.ports[1].container_port, 8080);
         assert!(svc.command.is_some());
         assert_eq!(svc.volume_mounts[0].mount_path, "/cockroach/cockroach-data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("health?ready=1")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("health?ready=1"))
+        );
         assert!(env["DATABASE_URL"].contains("cockroachdb:26257"));
     }
 
@@ -1186,7 +1211,12 @@ mod tests {
         assert!(svc.stateful);
         assert_eq!(svc.ports[0].container_port, 6379);
         assert_eq!(svc.volume_mounts[0].mount_path, "/data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("redis-cli")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("redis-cli"))
+        );
         assert_eq!(env["REDIS_URL"], "redis://redis:6379");
     }
 
@@ -1203,7 +1233,12 @@ mod tests {
         assert!(!svc.stateful);
         assert_eq!(svc.ports[0].container_port, 11211);
         assert!(svc.volume_mounts.is_empty());
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("nc localhost 11211")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("nc localhost 11211"))
+        );
         assert_eq!(env["MEMCACHED_URL"], "memcached:11211");
     }
 
@@ -1222,7 +1257,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 5672);
         assert_eq!(svc.ports[1].container_port, 15672);
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/rabbitmq");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("rabbitmq-diagnostics")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("rabbitmq-diagnostics"))
+        );
         assert_eq!(env["RABBITMQ_URL"], "amqp://guest:guest@rabbitmq:5672");
     }
 
@@ -1242,7 +1282,12 @@ mod tests {
         assert_eq!(svc.ports[1].container_port, 8081);
         assert!(svc.command.is_some());
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/redpanda/data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("rpk cluster health")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("rpk cluster health"))
+        );
         assert_eq!(env["KAFKA_BROKERS"], "kafka:9092");
     }
 
@@ -1261,7 +1306,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 4222);
         assert_eq!(svc.ports[1].container_port, 8222);
         assert!(svc.command.is_some());
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("healthz")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("healthz"))
+        );
         assert_eq!(env["NATS_URL"], "nats://nats:4222");
     }
 
@@ -1279,8 +1329,16 @@ mod tests {
         assert!(svc.stateful);
         assert_eq!(svc.ports[0].container_port, 9200);
         assert!(svc.env.contains_key("discovery.type"));
-        assert_eq!(svc.volume_mounts[0].mount_path, "/usr/share/elasticsearch/data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("_cluster/health")));
+        assert_eq!(
+            svc.volume_mounts[0].mount_path,
+            "/usr/share/elasticsearch/data"
+        );
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("_cluster/health"))
+        );
         assert_eq!(env["ELASTICSEARCH_URL"], "http://elasticsearch:9200");
     }
 
@@ -1298,7 +1356,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 7700);
         assert!(svc.env.contains_key("MEILI_ENV"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/meili_data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("7700/health")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("7700/health"))
+        );
         assert_eq!(env["MEILISEARCH_URL"], "http://meilisearch:7700");
     }
 
@@ -1316,7 +1379,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 8108);
         assert!(svc.env.contains_key("TYPESENSE_API_KEY"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("8108/health")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("8108/health"))
+        );
         assert_eq!(env["TYPESENSE_URL"], "http://typesense:8108");
     }
 
@@ -1338,7 +1406,12 @@ mod tests {
         assert!(svc.env.contains_key("MINIO_ROOT_USER"));
         assert!(svc.env.contains_key("MINIO_ROOT_PASSWORD"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/data");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("mc ready")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("mc ready"))
+        );
 
         assert_eq!(env.len(), 3);
         assert_eq!(env["S3_ENDPOINT"], "http://minio:9000");
@@ -1359,7 +1432,12 @@ mod tests {
         assert!(svc.stateful);
         assert_eq!(svc.ports[0].container_port, 9090);
         assert_eq!(svc.volume_mounts[0].mount_path, "/prometheus");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("9090/-/healthy")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("9090/-/healthy"))
+        );
         assert_eq!(env["PROMETHEUS_URL"], "http://prometheus:9090");
     }
 
@@ -1377,7 +1455,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 3000);
         assert!(svc.env.contains_key("GF_SECURITY_ADMIN_PASSWORD"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/grafana");
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("3000/api/health")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("3000/api/health"))
+        );
         assert_eq!(env["GRAFANA_URL"], "http://grafana:3000");
     }
 
@@ -1395,7 +1478,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 80);
         assert!(svc.volume_mounts.is_empty());
         assert!(svc.command.is_some());
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("traefik healthcheck")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("traefik healthcheck"))
+        );
         assert!(env.is_empty());
     }
 
@@ -1413,7 +1501,12 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 80);
         assert!(svc.volume_mounts.is_empty());
         assert!(svc.command.is_none());
-        assert!(svc.healthcheck.command.iter().any(|c| c.contains("localhost:80")));
+        assert!(
+            svc.healthcheck
+                .command
+                .iter()
+                .any(|c| c.contains("localhost:80"))
+        );
         assert!(env.is_empty());
     }
 
@@ -1423,10 +1516,20 @@ mod tests {
     fn stateful_services_have_volumes() {
         let config = default_config();
         let stateful = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense",
-            "minio", "prometheus",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
         ];
         for name in &stateful {
             let (svc, _) = build_service(name, &config).unwrap();
@@ -1435,10 +1538,7 @@ mod tests {
                 !svc.volume_mounts.is_empty(),
                 "{name} should have volume mounts"
             );
-            assert!(
-                !svc.pvc_size.is_empty(),
-                "{name} should have a pvc_size"
-            );
+            assert!(!svc.pvc_size.is_empty(), "{name} should have a pvc_size");
         }
     }
 
@@ -1456,10 +1556,24 @@ mod tests {
     fn all_services_have_healthchecks() {
         let config = default_config();
         let names = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
         for name in &names {
             let (svc, _) = build_service(name, &config).unwrap();
@@ -1487,10 +1601,24 @@ mod tests {
     fn all_services_are_enabled() {
         let config = default_config();
         let names = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
         for name in &names {
             let (svc, _) = build_service(name, &config).unwrap();
@@ -1502,10 +1630,24 @@ mod tests {
     fn all_ports_use_tcp_protocol() {
         let config = default_config();
         let names = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
         for name in &names {
             let (svc, _) = build_service(name, &config).unwrap();
@@ -1529,7 +1671,10 @@ mod tests {
                 ..default_config()
             };
             let (svc, _) = build_service(name, &config).unwrap();
-            assert_eq!(svc.image.tag, "custom-ver", "{name} should accept custom version");
+            assert_eq!(
+                svc.image.tag, "custom-ver",
+                "{name} should accept custom version"
+            );
         }
     }
 }

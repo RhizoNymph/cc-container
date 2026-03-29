@@ -80,12 +80,7 @@ pub fn build(
     } else {
         depends_on
             .iter()
-            .map(|name| {
-                (
-                    name.clone(),
-                    dct::DependsCondition::service_healthy(),
-                )
-            })
+            .map(|name| (name.clone(), dct::DependsCondition::service_healthy()))
             .collect()
     };
 
@@ -195,7 +190,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         // Build step should be simple "."
         match &svc.build_ {
@@ -226,7 +227,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile.claude");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile.claude",
+        );
 
         match &svc.build_ {
             Some(dct::BuildStep::Advanced(adv)) => {
@@ -241,12 +248,21 @@ mod tests {
     fn test_build_with_infra_env() {
         let config = minimal_config();
         let infra_env = IndexMap::from([
-            ("DATABASE_URL".to_string(), "postgres://dev:pw@postgres:5432/devdb".to_string()),
+            (
+                "DATABASE_URL".to_string(),
+                "postgres://dev:pw@postgres:5432/devdb".to_string(),
+            ),
             ("REDIS_URL".to_string(), "redis://redis:6379".to_string()),
         ]);
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("DATABASE_URL"));
@@ -262,7 +278,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on = vec!["postgres".to_string(), "redis".to_string()];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::DependsOnOptions::Conditional(deps) = &svc.depends_on {
             assert_eq!(deps.len(), 2);
@@ -279,7 +301,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::DependsOnOptions::Conditional(deps) = &svc.depends_on {
             assert!(deps.is_empty());
@@ -291,13 +319,25 @@ mod tests {
     #[test]
     fn test_build_with_user_env_vars() {
         let mut config = minimal_config();
-        config.environment.vars.insert("MY_VAR".to_string(), "my_value".to_string());
-        config.environment.vars.insert("ANOTHER".to_string(), "val2".to_string());
+        config
+            .environment
+            .vars
+            .insert("MY_VAR".to_string(), "my_value".to_string());
+        config
+            .environment
+            .vars
+            .insert("ANOTHER".to_string(), "val2".to_string());
 
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert_eq!(
@@ -326,7 +366,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -348,7 +394,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -380,7 +432,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         let vol_strs: Vec<String> = svc
             .volumes
@@ -405,7 +463,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("ANTHROPIC_API_KEY"));
@@ -424,7 +488,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         // OAuth mounts a credentials file
         let vol_strs: Vec<String> = svc
@@ -453,7 +523,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Codex, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Codex,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(env.contains_key("OPENAI_API_KEY"));
@@ -472,7 +548,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         match &svc.env_file {
             Some(dct::StringOrList::List(files)) => {
@@ -496,7 +578,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         assert_eq!(svc.cap_add, vec!["SYS_PTRACE".to_string()]);
         assert_eq!(svc.cap_drop, vec!["NET_RAW".to_string()]);
@@ -513,7 +601,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         let deploy = svc.deploy.unwrap();
         let resources = deploy.resources.unwrap();
@@ -527,7 +621,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         assert!(svc.deploy.is_none());
     }
@@ -538,7 +638,13 @@ mod tests {
         let infra_env = IndexMap::new();
         let depends_on: Vec<String> = vec![];
 
-        let svc = build(&config, AgentType::Claude, &infra_env, &depends_on, "Dockerfile");
+        let svc = build(
+            &config,
+            AgentType::Claude,
+            &infra_env,
+            &depends_on,
+            "Dockerfile",
+        );
 
         if let dct::Environment::KvPair(env) = &svc.environment {
             assert!(!env.contains_key("ANTHROPIC_API_KEY"));
