@@ -67,7 +67,8 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
 
         let mut mcp_env: IndexMap<String, Option<dct::SingleValue>> = IndexMap::new();
         for env_var in &mcp_config.env {
-            mcp_env.insert(env_var.clone(), Some(dct::SingleValue::String(format!("${{{env_var}}}"))));
+            let key = crate::compose::env::parse_env_key(env_var);
+            mcp_env.insert(key.to_string(), Some(dct::SingleValue::String(format!("${{{key}}}"))));
         }
 
         let mcp_volumes: Vec<dct::Volumes> = mcp_config
@@ -627,5 +628,40 @@ mod tests {
         let compose = generate(&config).unwrap();
         let mcp = compose.services.0.get("mcp-test").unwrap().as_ref().unwrap();
         assert!(mcp.command.is_none());
+    }
+
+    #[test]
+    fn test_mcp_service_env_key_val_format() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "github".to_string(),
+            McpServerConfig {
+                image: "ghcr.io/test:latest".to_string(),
+                command: None,
+                env: vec!["GITHUB_TOKEN=${GITHUB_TOKEN}".to_string()],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let compose = generate(&config).unwrap();
+        let mcp_svc = compose
+            .services
+            .0
+            .get("mcp-github")
+            .unwrap()
+            .as_ref()
+            .unwrap();
+
+        if let dct::Environment::KvPair(env) = &mcp_svc.environment {
+            // Key should be "GITHUB_TOKEN", not "GITHUB_TOKEN=${GITHUB_TOKEN}"
+            assert!(env.contains_key("GITHUB_TOKEN"));
+            assert!(!env.contains_key("GITHUB_TOKEN=${GITHUB_TOKEN}"));
+            // Value should be "${GITHUB_TOKEN}", not "${GITHUB_TOKEN=${GITHUB_TOKEN}}"
+            let val = env.get("GITHUB_TOKEN").unwrap().as_ref().unwrap();
+            assert_eq!(*val, dct::SingleValue::String("${GITHUB_TOKEN}".to_string()));
+        } else {
+            panic!("Expected KvPair environment");
+        }
     }
 }

@@ -72,7 +72,9 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
             McpValues {
                 image: mcp_config.image.clone(),
                 command: mcp_config.command.clone(),
-                env_from_secret: mcp_config.env.clone(),
+                env_from_secret: mcp_config.env.iter()
+                    .map(|e| crate::compose::env::parse_env_key(e).to_string())
+                    .collect(),
                 ports: mcp_config
                     .port
                     .map(|p| {
@@ -107,4 +109,76 @@ pub fn build(config: &ProjectConfig) -> Result<HelmValues> {
         secrets,
         ingress,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::project::*;
+
+    fn minimal_config() -> ProjectConfig {
+        ProjectConfig {
+            project: ProjectMeta {
+                name: "test-project".to_string(),
+                description: None,
+            },
+            agent: AgentConfig {
+                agent_type: AgentType::Claude,
+                claude_version: "latest".to_string(),
+                codex_version: "latest".to_string(),
+            },
+            image: ImageConfig::default(),
+            modules: IndexMap::new(),
+            auth: AuthConfig::default(),
+            firewall: FirewallConfig::default(),
+            workspace: WorkspaceConfig::default(),
+            volumes: IndexMap::new(),
+            environment: EnvironmentConfig::default(),
+            services: IndexMap::new(),
+            mcp: IndexMap::new(),
+            runtime: RuntimeConfig::default(),
+            helm: HelmConfig::default(),
+        }
+    }
+
+    #[test]
+    fn test_mcp_env_from_secret_key_val_format() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "github".to_string(),
+            McpServerConfig {
+                image: "ghcr.io/test:latest".to_string(),
+                command: None,
+                env: vec!["GITHUB_TOKEN=${GITHUB_TOKEN}".to_string()],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let values = build(&config).unwrap();
+        let mcp_values = values.mcp.get("github").unwrap();
+
+        // env_from_secret should contain just "GITHUB_TOKEN", not the full "GITHUB_TOKEN=${GITHUB_TOKEN}"
+        assert_eq!(mcp_values.env_from_secret, vec!["GITHUB_TOKEN".to_string()]);
+    }
+
+    #[test]
+    fn test_mcp_env_from_secret_bare_key() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "slack".to_string(),
+            McpServerConfig {
+                image: "test:latest".to_string(),
+                command: None,
+                env: vec!["SLACK_TOKEN".to_string()],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let values = build(&config).unwrap();
+        let mcp_values = values.mcp.get("slack").unwrap();
+
+        assert_eq!(mcp_values.env_from_secret, vec!["SLACK_TOKEN".to_string()]);
+    }
 }
