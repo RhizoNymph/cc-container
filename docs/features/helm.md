@@ -75,7 +75,7 @@ ProjectConfig
 | File | Part of Feature | Key Exports/Interfaces |
 |------|----------------|----------------------|
 | `src/helm/mod.rs` | Module declarations | Re-exports all submodules |
-| `src/helm/types.rs` | Type definitions | `HelmValues`, `ServiceValues`, `AgentValues`, `NetworkPolicyValues`, `SecretsValues`, `McpValues`, `IngressValues`, `ImageRef`, `PortSpec`, `VolumeMount`, `HealthcheckSpec`, `SecurityContext`, `ResourceLimits`, `ResourceSpec`, `SecretKeyRef` |
+| `src/helm/types.rs` | Type definitions | `HelmValues`, `ServiceValues`, `AgentValues`, `NetworkPolicyValues`, `SecretsValues`, `McpValues`, `IngressValues`, `ImageRef`, `PortSpec`, `VolumeMount`, `VolumeDefinition`, `HealthcheckSpec`, `SecurityContext`, `ResourceLimits`, `ResourceSpec`, `SecretKeyRef` |
 | `src/helm/chart.rs` | Top-level generator | `HelmChart` struct, `generate(config) -> Result<HelmChart>` |
 | `src/helm/templates.rs` | Template embedding | `all_templates() -> Vec<(&str, &str)>` |
 | `src/helm/values.rs` | Value orchestrator | `build(config) -> Result<HelmValues>` |
@@ -119,3 +119,7 @@ ProjectConfig
 9. **Chart output structure**: Generated chart files are written to `<output_dir>/chart/<project_name>/` with subdirectories for `templates/`.
 
 10. **Optional fields use skip_serializing_if**: Fields like `ingress`, `command`, `registry` use `skip_serializing_if` to omit null/None values from the generated YAML.
+
+11. **Volume definitions must match volume mounts**: Every entry in `AgentValues.volume_mounts` must have a corresponding entry in `AgentValues.volumes` with the same `name` field. The `agent_values::build()` function constructs both vectors in parallel to enforce this. Named config volumes map to PVC volume definitions, auth volumes map to Secret volume definitions, and additional mounts map to emptyDir volume definitions.
+
+12. **Auth secret env var names must match actual auth code**: The env var names in `secrets.rs` must match what the auth modules (`auth::claude`, `auth::codex`) actually set. Specifically: Proxy auth uses `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`), BedrockApiKey uses `AWS_BEARER_TOKEN_BEDROCK` (not IAM keys), and Codex Custom defaults to `CUSTOM_API_KEY` (not `OPENAI_API_KEY`).
