@@ -30,7 +30,7 @@ fn default_resources() -> ResourceLimits {
 }
 
 /// Build a port spec for a primary service port.
-fn port(name: &str, container_port: u16) -> PortSpec {
+fn port_spec(name: &str, container_port: u16) -> PortSpec {
     PortSpec {
         name: name.to_string(),
         container_port,
@@ -72,6 +72,7 @@ pub fn build_service(
 
 fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("16");
+    let host_port = config.port.unwrap_or(5432);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "POSTGRES_PASSWORD");
@@ -86,7 +87,7 @@ fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         },
         category: "database".to_string(),
         stateful: true,
-        ports: vec![port("postgres", 5432)],
+        ports: vec![port_spec("postgres", host_port)],
         env: IndexMap::from([
             ("POSTGRES_DB".to_string(), db.clone()),
             ("POSTGRES_USER".to_string(), user.clone()),
@@ -119,7 +120,7 @@ fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("postgres://{user}:${{{password_env}}}@postgres:5432/{db}"),
+        format!("postgres://{user}:${{{password_env}}}@postgres:{host_port}/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -127,6 +128,7 @@ fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
 
 fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("8");
+    let host_port = config.port.unwrap_or(3306);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "MYSQL_PASSWORD");
@@ -142,7 +144,7 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         },
         category: "database".to_string(),
         stateful: true,
-        ports: vec![port("mysql", 3306)],
+        ports: vec![port_spec("mysql", host_port)],
         env: IndexMap::from([
             ("MYSQL_DATABASE".to_string(), db.clone()),
             ("MYSQL_USER".to_string(), user.clone()),
@@ -179,7 +181,7 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mysql:3306/{db}"),
+        format!("mysql://{user}:${{{password_env}}}@mysql:{host_port}/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -187,6 +189,7 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
 fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("11");
+    let host_port = config.port.unwrap_or(3306);
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
     let password_env = get_str(config, "password_env", "MARIADB_PASSWORD");
@@ -202,7 +205,7 @@ fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         },
         category: "database".to_string(),
         stateful: true,
-        ports: vec![port("mariadb", 3306)],
+        ports: vec![port_spec("mariadb", host_port)],
         env: IndexMap::from([
             ("MARIADB_DATABASE".to_string(), db.clone()),
             ("MARIADB_USER".to_string(), user.clone()),
@@ -239,7 +242,7 @@ fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mariadb:3306/{db}"),
+        format!("mysql://{user}:${{{password_env}}}@mariadb:{host_port}/{db}"),
     )]);
 
     Ok((svc, agent_env))
@@ -247,6 +250,7 @@ fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
 fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("7");
+    let host_port = config.port.unwrap_or(27017);
 
     let svc = ServiceValues {
         enabled: true,
@@ -258,7 +262,7 @@ fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         },
         category: "database".to_string(),
         stateful: true,
-        ports: vec![port("mongodb", 27017)],
+        ports: vec![port_spec("mongodb", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -284,7 +288,7 @@ fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
     let agent_env = IndexMap::from([(
         "MONGODB_URL".to_string(),
-        "mongodb://mongodb:27017".to_string(),
+        format!("mongodb://mongodb:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -292,6 +296,7 @@ fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
 fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(26257);
 
     let svc = ServiceValues {
         enabled: true,
@@ -304,8 +309,8 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         category: "database".to_string(),
         stateful: true,
         ports: vec![
-            port("sql", 26257),
-            port("http", 8080),
+            port_spec("sql", host_port),
+            port_spec("http", 8080),
         ],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
@@ -335,7 +340,7 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
 
     let agent_env = IndexMap::from([(
         "DATABASE_URL".to_string(),
-        "postgres://root@cockroachdb:26257/defaultdb?sslmode=disable".to_string(),
+        format!("postgres://root@cockroachdb:{host_port}/defaultdb?sslmode=disable"),
     )]);
 
     Ok((svc, agent_env))
@@ -343,6 +348,7 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
 
 fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("7");
+    let host_port = config.port.unwrap_or(6379);
 
     let svc = ServiceValues {
         enabled: true,
@@ -354,7 +360,7 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         },
         category: "cache".to_string(),
         stateful: true,
-        ports: vec![port("redis", 6379)],
+        ports: vec![port_spec("redis", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -380,7 +386,7 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
     let agent_env = IndexMap::from([(
         "REDIS_URL".to_string(),
-        "redis://redis:6379".to_string(),
+        format!("redis://redis:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -388,6 +394,7 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
 fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("1");
+    let host_port = config.port.unwrap_or(11211);
 
     let svc = ServiceValues {
         enabled: true,
@@ -399,7 +406,7 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         },
         category: "cache".to_string(),
         stateful: false,
-        ports: vec![port("memcached", 11211)],
+        ports: vec![port_spec("memcached", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
@@ -421,7 +428,7 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
 
     let agent_env = IndexMap::from([(
         "MEMCACHED_URL".to_string(),
-        "memcached:11211".to_string(),
+        format!("memcached:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -429,6 +436,7 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
 
 fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("3-management");
+    let host_port = config.port.unwrap_or(5672);
 
     let svc = ServiceValues {
         enabled: true,
@@ -441,8 +449,8 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         category: "queue".to_string(),
         stateful: true,
         ports: vec![
-            port("amqp", 5672),
-            port("management", 15672),
+            port_spec("amqp", host_port),
+            port_spec("management", 15672),
         ],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
@@ -469,7 +477,7 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
 
     let agent_env = IndexMap::from([(
         "RABBITMQ_URL".to_string(),
-        "amqp://guest:guest@rabbitmq:5672".to_string(),
+        format!("amqp://guest:guest@rabbitmq:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -477,6 +485,7 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
 
 fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(9092);
 
     let svc = ServiceValues {
         enabled: true,
@@ -489,8 +498,8 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         category: "queue".to_string(),
         stateful: true,
         ports: vec![
-            port("kafka", 9092),
-            port("schema-registry", 8081),
+            port_spec("kafka", host_port),
+            port_spec("schema-registry", 8081),
         ],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
@@ -509,7 +518,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
             "512M".to_string(),
             "--overprovisioned".to_string(),
             "--kafka-addr".to_string(),
-            "0.0.0.0:9092".to_string(),
+            format!("0.0.0.0:{host_port}"),
         ]),
         healthcheck: HealthcheckSpec {
             command: vec![
@@ -527,7 +536,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
     let agent_env = IndexMap::from([(
         "KAFKA_BROKERS".to_string(),
-        "kafka:9092".to_string(),
+        format!("kafka:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -535,6 +544,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
 fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(4222);
 
     let svc = ServiceValues {
         enabled: true,
@@ -547,8 +557,8 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
         category: "queue".to_string(),
         stateful: true,
         ports: vec![
-            port("nats", 4222),
-            port("monitoring", 8222),
+            port_spec("nats", host_port),
+            port_spec("monitoring", 8222),
         ],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
@@ -579,7 +589,7 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
 
     let agent_env = IndexMap::from([(
         "NATS_URL".to_string(),
-        "nats://nats:4222".to_string(),
+        format!("nats://nats:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -587,6 +597,7 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
 
 fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("8");
+    let host_port = config.port.unwrap_or(9200);
 
     let svc = ServiceValues {
         enabled: true,
@@ -598,7 +609,7 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
         },
         category: "search".to_string(),
         stateful: true,
-        ports: vec![port("http", 9200)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::from([
             ("discovery.type".to_string(), "single-node".to_string()),
             (
@@ -634,7 +645,7 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
 
     let agent_env = IndexMap::from([(
         "ELASTICSEARCH_URL".to_string(),
-        "http://elasticsearch:9200".to_string(),
+        format!("http://elasticsearch:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -642,6 +653,7 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
 
 fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(7700);
 
     let svc = ServiceValues {
         enabled: true,
@@ -653,7 +665,7 @@ fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         },
         category: "search".to_string(),
         stateful: true,
-        ports: vec![port("http", 7700)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::from([("MEILI_ENV".to_string(), "development".to_string())]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -679,7 +691,7 @@ fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
 
     let agent_env = IndexMap::from([(
         "MEILISEARCH_URL".to_string(),
-        "http://meilisearch:7700".to_string(),
+        format!("http://meilisearch:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -687,6 +699,7 @@ fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
 
 fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(8108);
 
     let svc = ServiceValues {
         enabled: true,
@@ -698,7 +711,7 @@ fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         },
         category: "search".to_string(),
         stateful: true,
-        ports: vec![port("http", 8108)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::from([
             (
                 "TYPESENSE_API_KEY".to_string(),
@@ -730,7 +743,7 @@ fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
 
     let agent_env = IndexMap::from([(
         "TYPESENSE_URL".to_string(),
-        "http://typesense:8108".to_string(),
+        format!("http://typesense:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -738,6 +751,7 @@ fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
 
 fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(9000);
 
     let svc = ServiceValues {
         enabled: true,
@@ -750,8 +764,8 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         category: "storage".to_string(),
         stateful: true,
         ports: vec![
-            port("api", 9000),
-            port("console", 9001),
+            port_spec("api", host_port),
+            port_spec("console", 9001),
         ],
         env: IndexMap::from([
             (
@@ -791,7 +805,7 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
     };
 
     let agent_env = IndexMap::from([
-        ("S3_ENDPOINT".to_string(), "http://minio:9000".to_string()),
+        ("S3_ENDPOINT".to_string(), format!("http://minio:{host_port}")),
         (
             "S3_ACCESS_KEY_ID".to_string(),
             "${MINIO_ACCESS_KEY:-minioadmin}".to_string(),
@@ -807,6 +821,7 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
 fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(9090);
 
     let svc = ServiceValues {
         enabled: true,
@@ -818,7 +833,7 @@ fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String,
         },
         category: "monitoring".to_string(),
         stateful: true,
-        ports: vec![port("http", 9090)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -844,7 +859,7 @@ fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String,
 
     let agent_env = IndexMap::from([(
         "PROMETHEUS_URL".to_string(),
-        "http://prometheus:9090".to_string(),
+        format!("http://prometheus:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -852,6 +867,7 @@ fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String,
 
 fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(3000);
 
     let svc = ServiceValues {
         enabled: true,
@@ -863,7 +879,7 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         },
         category: "monitoring".to_string(),
         stateful: false,
-        ports: vec![port("http", 3000)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::from([(
             "GF_SECURITY_ADMIN_PASSWORD".to_string(),
             "${GRAFANA_PASSWORD:-admin}".to_string(),
@@ -892,7 +908,7 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
     let agent_env = IndexMap::from([(
         "GRAFANA_URL".to_string(),
-        "http://grafana:3000".to_string(),
+        format!("http://grafana:{host_port}"),
     )]);
 
     Ok((svc, agent_env))
@@ -900,6 +916,7 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
 fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(80);
 
     let svc = ServiceValues {
         enabled: true,
@@ -911,7 +928,7 @@ fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         },
         category: "proxy".to_string(),
         stateful: false,
-        ports: vec![port("http", 80)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
@@ -940,6 +957,7 @@ fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
 
 fn nginx(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
+    let host_port = config.port.unwrap_or(80);
 
     let svc = ServiceValues {
         enabled: true,
@@ -951,7 +969,7 @@ fn nginx(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         },
         category: "proxy".to_string(),
         stateful: false,
-        ports: vec![port("http", 80)],
+        ports: vec![port_spec("http", host_port)],
         env: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
@@ -1531,5 +1549,120 @@ mod tests {
             let (svc, _) = build_service(name, &config).unwrap();
             assert_eq!(svc.image.tag, "custom-ver", "{name} should accept custom version");
         }
+    }
+
+    // -- Port override tests --
+
+    #[test]
+    fn postgres_uses_custom_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: Some(5433),
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = postgres(&config).unwrap();
+        assert_eq!(svc.ports[0].container_port, 5433);
+        assert!(agent_env["DATABASE_URL"].contains(":5433/"));
+    }
+
+    #[test]
+    fn postgres_uses_default_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        };
+        let (svc, _) = postgres(&config).unwrap();
+        assert_eq!(svc.ports[0].container_port, 5432);
+    }
+
+    #[test]
+    fn redis_uses_custom_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: Some(6380),
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = redis(&config).unwrap();
+        assert_eq!(svc.ports[0].container_port, 6380);
+        assert!(agent_env["REDIS_URL"].contains(":6380"));
+    }
+
+    #[test]
+    fn redis_uses_default_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = redis(&config).unwrap();
+        assert_eq!(svc.ports[0].container_port, 6379);
+        assert_eq!(agent_env["REDIS_URL"], "redis://redis:6379");
+    }
+
+    #[test]
+    fn rabbitmq_uses_custom_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: Some(5673),
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = rabbitmq(&config).unwrap();
+        // Primary port overridden
+        assert_eq!(svc.ports[0].container_port, 5673);
+        // Secondary port stays fixed
+        assert_eq!(svc.ports[1].container_port, 15672);
+        assert!(agent_env["RABBITMQ_URL"].contains(":5673"));
+    }
+
+    #[test]
+    fn rabbitmq_uses_default_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: None,
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = rabbitmq(&config).unwrap();
+        assert_eq!(svc.ports[0].container_port, 5672);
+        assert_eq!(svc.ports[1].container_port, 15672);
+        assert_eq!(agent_env["RABBITMQ_URL"], "amqp://guest:guest@rabbitmq:5672");
+    }
+
+    #[test]
+    fn minio_uses_custom_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: Some(9002),
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = minio(&config).unwrap();
+        // Primary (API) port overridden
+        assert_eq!(svc.ports[0].container_port, 9002);
+        // Console port stays fixed
+        assert_eq!(svc.ports[1].container_port, 9001);
+        assert_eq!(agent_env["S3_ENDPOINT"], "http://minio:9002");
+    }
+
+    #[test]
+    fn cockroachdb_uses_custom_port() {
+        let config = ServiceConfig {
+            enabled: true,
+            version: None,
+            port: Some(26258),
+            extra: IndexMap::new(),
+        };
+        let (svc, agent_env) = cockroachdb(&config).unwrap();
+        // Primary (SQL) port overridden
+        assert_eq!(svc.ports[0].container_port, 26258);
+        // Admin UI port stays fixed
+        assert_eq!(svc.ports[1].container_port, 8080);
+        assert!(agent_env["DATABASE_URL"].contains(":26258/"));
     }
 }
