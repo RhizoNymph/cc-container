@@ -1,4 +1,4 @@
-# Ruby
+# Ruby (system package; version {{ params.version }} is advisory)
 {% if base_os == "alpine" %}
 RUN apk add --no-cache ruby ruby-dev ruby-bundler
 {% else %}

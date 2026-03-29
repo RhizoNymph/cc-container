@@ -1,4 +1,12 @@
 # Zig {{ params.version }}
+{% if base_os == "alpine" %}
+RUN apk add --no-cache xz \
+    && wget -q "https://ziglang.org/download/{{ params.version }}/zig-linux-$(uname -m)-{{ params.version }}.tar.xz" -O /tmp/zig.tar.xz \
+    && tar -xJf /tmp/zig.tar.xz -C /usr/local \
+    && rm /tmp/zig.tar.xz \
+    && ln -s /usr/local/zig-linux-*-{{ params.version }}/zig /usr/local/bin/zig
+{% else %}
 RUN curl -fsSL "https://ziglang.org/download/{{ params.version }}/zig-linux-$(uname -m)-{{ params.version }}.tar.xz" | \
     tar -xJ -C /usr/local \
     && ln -s /usr/local/zig-linux-*-{{ params.version }}/zig /usr/local/bin/zig
+{% endif %}

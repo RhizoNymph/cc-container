@@ -1,6 +1,6 @@
 # .NET {{ params.version }}
 {% if base_os == "alpine" %}
-RUN apk add --no-cache dotnet{{ params.version | replace(".", "") }}-sdk
+RUN apk add --no-cache dotnet{{ params.version[0] }}-sdk
 {% else %}
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget apt-transport-https \
