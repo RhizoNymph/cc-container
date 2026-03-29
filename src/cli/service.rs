@@ -128,22 +128,32 @@ mod tests {
     }
 
     #[test]
-    fn service_add_runs_without_error() {
+    fn service_add_returns_not_implemented() {
         let cmd = ServiceCommand::Add(ServiceAddArgs {
             names: vec!["postgres".to_string()],
             params: vec![],
         });
         let result = run(&cmd, &default_global());
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
-    fn service_remove_runs_without_error() {
+    fn service_remove_returns_not_implemented() {
         let cmd = ServiceCommand::Remove(ServiceRemoveArgs {
             names: vec!["redis".to_string()],
         });
         let result = run(&cmd, &default_global());
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
@@ -196,11 +206,15 @@ pub fn run(cmd: &ServiceCommand, _global: &super::GlobalOpts) -> crate::error::R
                 }
             }
         }
-        ServiceCommand::Add(args) => {
-            eprintln!("Service add {:?} not yet implemented", args.names);
+        ServiceCommand::Add(_args) => {
+            return Err(crate::error::Error::Other(
+                "service add is not yet implemented".to_string(),
+            ));
         }
-        ServiceCommand::Remove(args) => {
-            eprintln!("Service remove {:?} not yet implemented", args.names);
+        ServiceCommand::Remove(_args) => {
+            return Err(crate::error::Error::Other(
+                "service remove is not yet implemented".to_string(),
+            ));
         }
     }
     Ok(())

@@ -116,7 +116,8 @@ pub fn generate(
 
         let mut mcp_env: IndexMap<String, Option<dct::SingleValue>> = IndexMap::new();
         for env_var in &mcp_config.env {
-            mcp_env.insert(env_var.clone(), Some(dct::SingleValue::String(format!("${{{env_var}}}"))));
+            let key = crate::compose::env::parse_env_key(env_var);
+            mcp_env.insert(key.to_string(), Some(dct::SingleValue::String(format!("${{{key}}}"))));
         }
 
         let mcp_volumes: Vec<dct::Volumes> = mcp_config

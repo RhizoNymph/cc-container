@@ -241,7 +241,11 @@ mod tests {
     #[test]
     fn healthcheck_spec_serializes_correctly() {
         let hc = HealthcheckSpec {
-            command: vec!["pg_isready".to_string(), "-U".to_string(), "dev".to_string()],
+            command: vec![
+                "pg_isready".to_string(),
+                "-U".to_string(),
+                "dev".to_string(),
+            ],
             initial_delay_seconds: 30,
             period_seconds: 10,
             timeout_seconds: 5,
@@ -276,9 +280,10 @@ mod tests {
                 key: "ANTHROPIC_API_KEY".to_string(),
                 description: "Claude API key".to_string(),
             }],
-            service_credentials: IndexMap::from([
-                ("POSTGRES_PASSWORD".to_string(), "changeme".to_string()),
-            ]),
+            service_credentials: IndexMap::from([(
+                "POSTGRES_PASSWORD".to_string(),
+                "changeme".to_string(),
+            )]),
         };
         let yaml = serde_yaml::to_string(&sv).unwrap();
         assert!(yaml.contains("ANTHROPIC_API_KEY"));
@@ -328,8 +333,14 @@ mod tests {
                 failure_threshold: 5,
             },
             resources: ResourceLimits {
-                requests: ResourceSpec { cpu: None, memory: None },
-                limits: ResourceSpec { cpu: None, memory: None },
+                requests: ResourceSpec {
+                    cpu: None,
+                    memory: None,
+                },
+                limits: ResourceSpec {
+                    cpu: None,
+                    memory: None,
+                },
             },
         };
         let yaml = serde_yaml::to_string(&sv).unwrap();
@@ -363,8 +374,14 @@ mod tests {
                 },
                 replicas: 1,
                 resources: ResourceLimits {
-                    requests: ResourceSpec { cpu: None, memory: None },
-                    limits: ResourceSpec { cpu: None, memory: None },
+                    requests: ResourceSpec {
+                        cpu: None,
+                        memory: None,
+                    },
+                    limits: ResourceSpec {
+                        cpu: None,
+                        memory: None,
+                    },
                 },
                 env: IndexMap::new(),
                 env_from_secret: vec![],
