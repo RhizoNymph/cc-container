@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn config_set_runs_without_error() {
+    fn config_set_returns_not_implemented() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
         let global = make_global(config_path);
@@ -182,11 +182,16 @@ mod tests {
             value: "codex".to_string(),
         });
         let result = run(&cmd, &global);
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
-    fn config_get_runs_without_error() {
+    fn config_get_returns_not_implemented() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
         let global = make_global(config_path);
@@ -195,7 +200,12 @@ mod tests {
             key: "project.name".to_string(),
         });
         let result = run(&cmd, &global);
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
@@ -266,11 +276,15 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
                 }
             }
         }
-        ConfigCommand::Set(args) => {
-            eprintln!("Config set {}={} not yet implemented", args.key, args.value);
+        ConfigCommand::Set(_args) => {
+            return Err(crate::error::Error::Other(
+                "config set is not yet implemented".to_string(),
+            ));
         }
-        ConfigCommand::Get(args) => {
-            eprintln!("Config get {} not yet implemented", args.key);
+        ConfigCommand::Get(_args) => {
+            return Err(crate::error::Error::Other(
+                "config get is not yet implemented".to_string(),
+            ));
         }
         ConfigCommand::Edit => {
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());

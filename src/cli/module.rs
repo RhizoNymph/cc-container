@@ -114,32 +114,47 @@ mod tests {
     }
 
     #[test]
-    fn module_add_runs_without_error() {
+    fn module_add_returns_not_implemented() {
         let cmd = ModuleCommand::Add(ModuleAddArgs {
             names: vec!["node".to_string()],
             params: vec![],
         });
         let result = run(&cmd, &default_global());
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
-    fn module_remove_runs_without_error() {
+    fn module_remove_returns_not_implemented() {
         let cmd = ModuleCommand::Remove(ModuleRemoveArgs {
             names: vec!["git".to_string()],
         });
         let result = run(&cmd, &default_global());
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
-    fn module_create_runs_without_error() {
+    fn module_create_returns_not_implemented() {
         let cmd = ModuleCommand::Create(ModuleCreateArgs {
             name: "mymod".to_string(),
             dir: None,
         });
         let result = run(&cmd, &default_global());
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not yet implemented"),
+            "Expected 'not yet implemented' error, got: {err_msg}"
+        );
     }
 
     #[test]
@@ -201,14 +216,20 @@ pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Re
                 println!("Conflicts: {}", meta.dependencies.conflicts.join(", "));
             }
         }
-        ModuleCommand::Add(args) => {
-            eprintln!("Module add {:?} not yet implemented", args.names);
+        ModuleCommand::Add(_args) => {
+            return Err(crate::error::Error::Other(
+                "module add is not yet implemented".to_string(),
+            ));
         }
-        ModuleCommand::Remove(args) => {
-            eprintln!("Module remove {:?} not yet implemented", args.names);
+        ModuleCommand::Remove(_args) => {
+            return Err(crate::error::Error::Other(
+                "module remove is not yet implemented".to_string(),
+            ));
         }
-        ModuleCommand::Create(args) => {
-            eprintln!("Module create '{}' not yet implemented", args.name);
+        ModuleCommand::Create(_args) => {
+            return Err(crate::error::Error::Other(
+                "module create is not yet implemented".to_string(),
+            ));
         }
     }
     Ok(())
