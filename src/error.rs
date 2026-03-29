@@ -48,6 +48,9 @@ pub enum Error {
     #[error("invalid port number {value} in {context}: must be 1-65535")]
     InvalidPort { value: i64, context: String },
 
+    #[error("helm chart generation error: {0}")]
+    HelmGeneration(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

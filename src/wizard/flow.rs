@@ -157,6 +157,7 @@ pub fn run(target: &Path) -> crate::error::Result<ProjectConfig> {
         services,
         mcp: IndexMap::new(),
         runtime,
+        helm: HelmConfig::default(),
     })
 }
 

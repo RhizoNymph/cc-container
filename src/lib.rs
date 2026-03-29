@@ -4,6 +4,7 @@ pub mod compose;
 pub mod config;
 pub mod error;
 pub mod firewall;
+pub mod helm;
 pub mod mcp;
 pub mod module;
 pub mod wizard;
@@ -195,6 +196,7 @@ mod firewall_generator_tests {
             services: IndexMap::new(),
             mcp: IndexMap::new(),
             runtime: RuntimeConfig::default(),
+            helm: HelmConfig::default(),
         }
     }
 

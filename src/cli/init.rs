@@ -125,6 +125,7 @@ fn generate_default_config(
         services: IndexMap::new(),
         mcp: IndexMap::new(),
         runtime: RuntimeConfig::default(),
+        helm: HelmConfig::default(),
     }
 }
 
@@ -437,5 +438,6 @@ fn generate_template_config(
         services: IndexMap::new(),
         mcp: IndexMap::new(),
         runtime: RuntimeConfig::default(),
+        helm: HelmConfig::default(),
     }
 }

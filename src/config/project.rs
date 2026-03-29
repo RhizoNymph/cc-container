@@ -27,6 +27,8 @@ pub struct ProjectConfig {
     pub mcp: IndexMap<String, McpServerConfig>,
     #[serde(default)]
     pub runtime: RuntimeConfig,
+    #[serde(default)]
+    pub helm: HelmConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -320,6 +322,57 @@ pub struct RuntimeConfig {
     pub cpu_limit: Option<String>,
     #[serde(default)]
     pub shm_size: Option<String>,
+}
+
+// --- Helm ---
+
+/// Helm chart generation settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HelmConfig {
+    /// Container image registry for the agent image (e.g. "ghcr.io/myorg").
+    #[serde(default)]
+    pub image_registry: Option<String>,
+    /// Repository name for the agent image within the registry.
+    /// Defaults to the project name.
+    #[serde(default)]
+    pub image_repository: Option<String>,
+    /// Tag for the agent image. Defaults to "latest".
+    #[serde(default = "default_latest")]
+    pub image_tag: String,
+    /// Kubernetes namespace. Defaults to the project name.
+    #[serde(default)]
+    pub namespace: Option<String>,
+    /// Storage class for PVCs. None means use cluster default.
+    #[serde(default)]
+    pub storage_class: Option<String>,
+    /// Default PVC size for stateful services.
+    #[serde(default = "default_pvc_size")]
+    pub default_pvc_size: String,
+    /// Ingress hostname. If set, generates an Ingress resource.
+    #[serde(default)]
+    pub ingress_host: Option<String>,
+    /// Ingress class name (e.g. "nginx", "traefik").
+    #[serde(default)]
+    pub ingress_class: Option<String>,
+}
+
+impl Default for HelmConfig {
+    fn default() -> Self {
+        Self {
+            image_registry: None,
+            image_repository: None,
+            image_tag: default_latest(),
+            namespace: None,
+            storage_class: None,
+            default_pvc_size: default_pvc_size(),
+            ingress_host: None,
+            ingress_class: None,
+        }
+    }
+}
+
+fn default_pvc_size() -> String {
+    "10Gi".to_string()
 }
 
 // --- Default helpers ---
@@ -1096,5 +1149,78 @@ key = "value"
     fn empty_config_fails() {
         let result: Result<ProjectConfig, _> = toml::from_str("");
         assert!(result.is_err());
+    }
+
+    // ───────────────────── Helm config ─────────────────────
+
+    #[test]
+    fn helm_config_defaults() {
+        let config: ProjectConfig = toml::from_str(MINIMAL_CONFIG).unwrap();
+        assert!(config.helm.image_registry.is_none());
+        assert!(config.helm.image_repository.is_none());
+        assert_eq!(config.helm.image_tag, "latest");
+        assert!(config.helm.namespace.is_none());
+        assert!(config.helm.storage_class.is_none());
+        assert_eq!(config.helm.default_pvc_size, "10Gi");
+        assert!(config.helm.ingress_host.is_none());
+        assert!(config.helm.ingress_class.is_none());
+    }
+
+    #[test]
+    fn parse_helm_config_all_fields() {
+        let toml_str = r#"
+[project]
+name = "helm-test"
+[agent]
+type = "claude"
+[helm]
+image_registry = "ghcr.io/myorg"
+image_repository = "my-agent"
+image_tag = "sha-abc123"
+namespace = "dev-agents"
+storage_class = "ssd"
+default_pvc_size = "50Gi"
+ingress_host = "agent.dev.internal"
+ingress_class = "nginx"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.helm.image_registry.as_deref(), Some("ghcr.io/myorg"));
+        assert_eq!(config.helm.image_repository.as_deref(), Some("my-agent"));
+        assert_eq!(config.helm.image_tag, "sha-abc123");
+        assert_eq!(config.helm.namespace.as_deref(), Some("dev-agents"));
+        assert_eq!(config.helm.storage_class.as_deref(), Some("ssd"));
+        assert_eq!(config.helm.default_pvc_size, "50Gi");
+        assert_eq!(config.helm.ingress_host.as_deref(), Some("agent.dev.internal"));
+        assert_eq!(config.helm.ingress_class.as_deref(), Some("nginx"));
+    }
+
+    #[test]
+    fn parse_helm_config_partial() {
+        let toml_str = r#"
+[project]
+name = "helm-partial"
+[agent]
+type = "claude"
+[helm]
+image_registry = "docker.io/myteam"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.helm.image_registry.as_deref(), Some("docker.io/myteam"));
+        assert_eq!(config.helm.image_tag, "latest");
+        assert_eq!(config.helm.default_pvc_size, "10Gi");
+        assert!(config.helm.namespace.is_none());
+    }
+
+    #[test]
+    fn helm_config_default_impl() {
+        let helm = HelmConfig::default();
+        assert!(helm.image_registry.is_none());
+        assert!(helm.image_repository.is_none());
+        assert_eq!(helm.image_tag, "latest");
+        assert!(helm.namespace.is_none());
+        assert!(helm.storage_class.is_none());
+        assert_eq!(helm.default_pvc_size, "10Gi");
+        assert!(helm.ingress_host.is_none());
+        assert!(helm.ingress_class.is_none());
     }
 }
