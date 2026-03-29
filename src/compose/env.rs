@@ -1,6 +1,12 @@
 use crate::auth;
 use crate::config::project::{AgentType, ProjectConfig};
 
+/// Extract the KEY part from an env var string.
+/// Handles "KEY", "KEY=value", and "KEY=${KEY}" formats.
+pub fn parse_env_key(env_str: &str) -> &str {
+    env_str.split_once('=').map(|(k, _)| k).unwrap_or(env_str)
+}
+
 /// Generate the contents of a .env.example file.
 pub fn generate_env_example(config: &ProjectConfig) -> String {
     let mut lines = Vec::new();
@@ -100,7 +106,8 @@ pub fn generate_env_example(config: &ProjectConfig) -> String {
         lines.push("# MCP server credentials".to_string());
         for (_name, mcp_config) in &config.mcp {
             for env_var in &mcp_config.env {
-                lines.push(format!("{env_var}=your-value-here"));
+                let key = parse_env_key(env_var);
+                lines.push(format!("{key}=your-value-here"));
             }
         }
         lines.push(String::new());
@@ -433,5 +440,41 @@ mod tests {
         let output = generate_env_example(&config);
         assert!(output.contains("GITHUB_TOKEN=your-value-here"));
         assert!(output.contains("SLACK_TOKEN=your-value-here"));
+    }
+
+    #[test]
+    fn test_parse_env_key_bare() {
+        assert_eq!(parse_env_key("GITHUB_TOKEN"), "GITHUB_TOKEN");
+    }
+
+    #[test]
+    fn test_parse_env_key_with_substitution() {
+        assert_eq!(parse_env_key("GITHUB_TOKEN=${GITHUB_TOKEN}"), "GITHUB_TOKEN");
+    }
+
+    #[test]
+    fn test_parse_env_key_with_literal() {
+        assert_eq!(parse_env_key("API_KEY=abc123"), "API_KEY");
+    }
+
+    #[test]
+    fn test_env_example_mcp_env_key_val_format() {
+        let mut config = minimal_config();
+        config.mcp.insert(
+            "github".to_string(),
+            McpServerConfig {
+                image: "ghcr.io/test:latest".to_string(),
+                command: None,
+                env: vec!["GITHUB_TOKEN=${GITHUB_TOKEN}".to_string()],
+                volumes: vec![],
+                port: None,
+            },
+        );
+
+        let output = generate_env_example(&config);
+        assert!(output.contains("# MCP server credentials"));
+        assert!(output.contains("GITHUB_TOKEN=your-value-here"));
+        // Must NOT contain the double-equals form
+        assert!(!output.contains("GITHUB_TOKEN=${GITHUB_TOKEN}=your-value-here"));
     }
 }
