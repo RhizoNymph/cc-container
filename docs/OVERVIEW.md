@@ -140,7 +140,7 @@ Features Index:
 src/
 ├── main.rs                     # Entry point, tracing setup, command dispatch
 ├── lib.rs                      # Module declarations and re-exports
-├── error.rs                    # Error enum (16 variants via thiserror)
+├── error.rs                    # Error enum (17 variants via thiserror)
 ├── config/
 │   ├── mod.rs                  # load_project_config, load_user_config, load_effective_config
 │   ├── project.rs              # ProjectConfig and all nested config types
