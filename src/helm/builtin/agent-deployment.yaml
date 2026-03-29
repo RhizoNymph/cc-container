@@ -1,0 +1,141 @@
+{{- if eq .Values.agent.agentType "both" }}
+{{- range $suffix := list "claude" "codex" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" $ }}-agent-{{ $suffix }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent-{{ $suffix }}
+spec:
+  replicas: {{ $.Values.agent.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: agent-{{ $suffix }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: agent-{{ $suffix }}
+    spec:
+      securityContext:
+        runAsNonRoot: {{ $.Values.agent.securityContext.runAsNonRoot }}
+      containers:
+        - name: agent-{{ $suffix }}
+          image: "{{ $.Values.agent.image.repository }}:{{ $.Values.agent.image.tag }}"
+          imagePullPolicy: {{ $.Values.agent.image.pullPolicy }}
+          env:
+            {{- range $key, $val := $.Values.agent.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- range $.Values.agent.envFromSecret }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chart.fullname" $ }}-secrets
+                  key: {{ . }}
+            {{- end }}
+          volumeMounts:
+            - name: workspace
+              mountPath: {{ $.Values.agent.workspaceMountPath }}
+            {{- range $.Values.agent.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .readOnly }}
+              readOnly: {{ .readOnly }}
+              {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml $.Values.agent.resources | nindent 12 }}
+          securityContext:
+            capabilities:
+              {{- if $.Values.agent.securityContext.capabilitiesAdd }}
+              add:
+                {{- range $.Values.agent.securityContext.capabilitiesAdd }}
+                - {{ . }}
+                {{- end }}
+              {{- end }}
+              {{- if $.Values.agent.securityContext.capabilitiesDrop }}
+              drop:
+                {{- range $.Values.agent.securityContext.capabilitiesDrop }}
+                - {{ . }}
+                {{- end }}
+              {{- end }}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "chart.fullname" $ }}-workspace
+{{- end }}
+{{- else }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" . }}-agent
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  replicas: {{ .Values.agent.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.agent.securityContext.runAsNonRoot }}
+      containers:
+        - name: agent
+          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          env:
+            {{- range $key, $val := .Values.agent.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- range .Values.agent.envFromSecret }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chart.fullname" $ }}-secrets
+                  key: {{ . }}
+            {{- end }}
+          volumeMounts:
+            - name: workspace
+              mountPath: {{ .Values.agent.workspaceMountPath }}
+            {{- range .Values.agent.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .readOnly }}
+              readOnly: {{ .readOnly }}
+              {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          securityContext:
+            capabilities:
+              {{- if .Values.agent.securityContext.capabilitiesAdd }}
+              add:
+                {{- range .Values.agent.securityContext.capabilitiesAdd }}
+                - {{ . }}
+                {{- end }}
+              {{- end }}
+              {{- if .Values.agent.securityContext.capabilitiesDrop }}
+              drop:
+                {{- range .Values.agent.securityContext.capabilitiesDrop }}
+                - {{ . }}
+                {{- end }}
+              {{- end }}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "chart.fullname" . }}-workspace
+{{- end }}
