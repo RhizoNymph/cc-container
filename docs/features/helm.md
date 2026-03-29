@@ -114,7 +114,7 @@ ProjectConfig
 
 7. **HelmValues must round-trip through serde_yaml**: The `HelmValues` struct must serialize cleanly through `serde_yaml::to_string()` to produce valid YAML.
 
-8. **Stub modules will be replaced**: The `agent_values.rs`, `service_values.rs`, `network_policy.rs`, and `secrets.rs` files contain stub implementations that will be replaced by the `feat/helm-services` branch (WS B). The module interfaces (function signatures) must remain compatible.
+8. **Value builders are fully implemented**: The `agent_values.rs`, `service_values.rs`, `network_policy.rs`, and `secrets.rs` files contain complete implementations for building typed Helm values from ProjectConfig.
 
 9. **Chart output structure**: Generated chart files are written to `<output_dir>/chart/<project_name>/` with subdirectories for `templates/`.
 

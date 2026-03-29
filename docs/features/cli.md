@@ -46,7 +46,8 @@ main.rs
           │           ├── compose → compose::generator::generate()
           │           ├── firewall → firewall::generator::generate()
           │           ├── env → compose::env::generate_env_example()
-          │           └── mcp → mcp::config::generate_mcp_json()
+          │           ├── mcp → mcp::config::generate_mcp_json()
+          │           └── helm → helm::chart::generate() (opt-in only)
           │
           ├── module → module::run()
           │     ├── list → show available modules (optional --category filter)
@@ -113,7 +114,7 @@ Validates no existing `cc-container.toml` before proceeding.
 cc-container generate [OPTIONS]
   --output <PATH>         Output directory (default: target-dir)
   --dry-run               Print to stdout instead of writing files
-  --only <TARGETS>        Comma-separated: dockerfile, compose, firewall, env, mcp
+  --only <TARGETS>        Comma-separated: dockerfile, compose, firewall, env, mcp, helm
 ```
 
 ### module
@@ -211,7 +212,7 @@ The wizard (`wizard::flow::run()`) guides users through project setup with 10 pr
 | `src/wizard/flow.rs` | Interactive init flow | `run()` |
 | `src/wizard/prompts.rs` | Prompt helpers | dialoguer wrappers |
 | `src/main.rs` | Entry point | Tracing setup, command dispatch |
-| `src/error.rs` | Error types | `Error` enum (16 variants) |
+| `src/error.rs` | Error types | `Error` enum (17 variants) |
 
 ## Invariants and Constraints
 
