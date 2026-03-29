@@ -3,6 +3,8 @@
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::compose::generator::generate;
     use crate::config::project::ProjectConfig;
     use docker_compose_types as dct;
@@ -42,7 +44,7 @@ type = "claude"
     #[test]
     fn no_mcp_config_produces_no_mcp_services() {
         let config = parse_config(BASE_TOML);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         let mcp_services: Vec<_> = compose
             .services
@@ -69,7 +71,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         assert!(has_service(&compose, "mcp-fetch"));
     }
@@ -87,7 +89,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         assert_eq!(svc.image.unwrap(), "mcp/fetch:latest");
@@ -106,7 +108,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         assert!(svc.command.is_none());
@@ -125,7 +127,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.ports {
@@ -147,7 +149,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         assert!(svc.volumes.is_empty());
@@ -166,7 +168,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.environment {
@@ -188,7 +190,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         assert_eq!(svc.restart.as_deref(), Some("unless-stopped"));
@@ -210,7 +212,7 @@ image = "mcp/fetch:latest"
 command = ["node", "server.js"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.command {
@@ -237,7 +239,7 @@ image = "mcp/fetch:latest"
 env = ["API_KEY", "DEBUG"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.environment {
@@ -266,7 +268,7 @@ image = "mcp/fetch:latest"
 volumes = ["/data:/data", "/config:/config:ro"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         assert_eq!(svc.volumes.len(), 2);
@@ -300,7 +302,7 @@ image = "mcp/fetch:latest"
 port = 8000
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.ports {
@@ -331,7 +333,7 @@ volumes = ["/data:/data"]
 port = 8000
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         // Image
@@ -389,7 +391,7 @@ image = "mcp/memory:latest"
 image = "mcp/search:v2"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         assert!(has_service(&compose, "mcp-fetch"));
         assert!(has_service(&compose, "mcp-memory"));
@@ -412,7 +414,7 @@ image = "mcp/fetch:latest"
 image = "mcp/memory:v2"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         let fetch = get_service(&compose, "mcp-fetch");
         let memory = get_service(&compose, "mcp-memory");
@@ -439,7 +441,7 @@ image = "mcp/memory:latest"
 port = 9000
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         let fetch = get_service(&compose, "mcp-fetch");
         let memory = get_service(&compose, "mcp-memory");
@@ -469,7 +471,7 @@ type = "claude"
 image = "img:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         assert!(has_service(&compose, "mcp-my-server"));
     }
@@ -489,7 +491,7 @@ type = "claude"
 image = "mcp/fetch:latest"
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         // Both agent and MCP services should exist
         assert!(has_service(&compose, "agent"));
@@ -512,7 +514,7 @@ image = "mcp/fetch:latest"
 volumes = ["mcp-data:/data"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         assert!(
             compose.volumes.0.contains_key("mcp-data"),
@@ -534,7 +536,7 @@ image = "mcp/fetch:latest"
 volumes = ["/host/path:/container/path"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
 
         // Host-path volumes (starting with /) should not be in top-level volumes
         assert!(
@@ -559,7 +561,7 @@ image = "mcp/fetch:latest"
 env = ["MY_KEY"]
 "#;
         let config = parse_config(toml_str);
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let svc = get_service(&compose, "mcp-fetch");
 
         match svc.environment {

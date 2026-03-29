@@ -41,9 +41,10 @@ main.rs
           ├── generate → generate::run()
           │     ├── load_effective_config()
           │     ├── validate_config() → print warnings
+          │     ├── Compute project_root (target-dir) and output_dir (--output or target-dir)
           │     └── Generate targets (--only filter):
-          │           ├── dockerfile → DockerfileGenerator::generate()
-          │           ├── compose → compose::generator::generate()
+          │           ├── dockerfile → ModuleRegistry + load_user_modules(project_root/modules) → DockerfileGenerator::generate()
+          │           ├── compose → compose::generator::generate(config, output_dir, project_root) (uses relative context_path)
           │           ├── firewall → firewall::generator::generate()
           │           ├── env → compose::env::generate_env_example()
           │           └── mcp → mcp::config::generate_mcp_json()

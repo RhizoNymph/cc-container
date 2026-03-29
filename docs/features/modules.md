@@ -216,3 +216,4 @@ The `user-setup` module resolves shell paths dynamically at build time using `$(
 6. **Template context is fixed**: Templates receive exactly `params`, `base_os`, and `image` (user, shell). No other config data is available in templates.
 7. **All built-ins are embedded**: Module TOML + templates are compiled into the binary via `include_str!`. Changes require recompilation.
 8. **IndexMap preserves order**: Module insertion order is preserved throughout the pipeline.
+9. **User modules loaded from project root**: During `generate`, user-defined modules are loaded from `{project_root}/modules/` directory, allowing project-specific module overrides and additions.

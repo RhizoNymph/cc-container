@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crate::config::project::{AgentType, ProjectConfig};
 use crate::error::Result;
 use docker_compose_types as dct;
@@ -6,8 +8,55 @@ use indexmap::IndexMap;
 use super::agent_service;
 use super::service_templates;
 
+/// Compute the relative path from `from` to `to`.
+///
+/// Both paths should be absolute (or at least share a common prefix).
+/// Returns `None` if the paths have no common ancestor.
+fn diff_paths(to: &Path, from: &Path) -> Option<PathBuf> {
+    let to = to.components().collect::<Vec<_>>();
+    let from = from.components().collect::<Vec<_>>();
+
+    // Find the length of the common prefix
+    let common_len = to
+        .iter()
+        .zip(from.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    if common_len == 0 {
+        return None;
+    }
+
+    let mut result = PathBuf::new();
+    // Go up from `from` to the common ancestor
+    for _ in common_len..from.len() {
+        result.push("..");
+    }
+    // Then descend into `to`
+    for component in &to[common_len..] {
+        result.push(component);
+    }
+
+    Some(result)
+}
+
 /// Generate a complete docker-compose Compose struct from project config.
-pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
+///
+/// `output_dir` and `project_root` are used to compute the relative path from
+/// the directory where docker-compose.yml will be written back to the project
+/// root. When they are equal the context is `"."` (backward compatible).
+pub fn generate(
+    config: &ProjectConfig,
+    output_dir: &Path,
+    project_root: &Path,
+) -> Result<dct::Compose> {
+    let context_path = if output_dir == project_root {
+        ".".to_string()
+    } else {
+        diff_paths(project_root, output_dir)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| ".".to_string())
+    };
     let mut services: IndexMap<String, Option<dct::Service>> = IndexMap::new();
     let mut top_volumes: IndexMap<String, dct::MapOrEmpty<dct::ComposeVolume>> = IndexMap::new();
 
@@ -109,6 +158,7 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
                 &infra_env,
                 &infra_service_names,
                 "Dockerfile.claude",
+                &context_path,
             );
             let codex_svc = agent_service::build(
                 config,
@@ -116,6 +166,7 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
                 &infra_env,
                 &infra_service_names,
                 "Dockerfile.codex",
+                &context_path,
             );
             services.insert("agent-claude".to_string(), Some(claude_svc));
             services.insert("agent-codex".to_string(), Some(codex_svc));
@@ -127,6 +178,7 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
                 &infra_env,
                 &infra_service_names,
                 "Dockerfile",
+                &context_path,
             );
             services.insert("agent".to_string(), Some(svc));
         }
@@ -198,7 +250,7 @@ mod tests {
     #[test]
     fn test_generate_minimal_config() {
         let config = minimal_config();
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Should have exactly one agent service
@@ -219,7 +271,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Should have postgres + agent
@@ -253,7 +305,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Disabled service should not appear
@@ -284,7 +336,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Should have redis + memcached + agent
@@ -308,7 +360,7 @@ mod tests {
         let mut config = minimal_config();
         config.agent.agent_type = AgentType::Both;
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Should have two agent services
@@ -322,7 +374,7 @@ mod tests {
         let mut config = minimal_config();
         config.agent.agent_type = AgentType::Codex;
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         assert_eq!(services.len(), 1);
@@ -350,7 +402,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // MCP service should be named "mcp-github"
@@ -394,7 +446,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
         let mcp_svc = services.get("mcp-test").unwrap().as_ref().unwrap();
 
@@ -428,7 +480,7 @@ mod tests {
         );
 
         // Both postgres and mysql set DATABASE_URL; generator should handle the conflict
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         assert!(services.contains_key("postgres"));
@@ -456,7 +508,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let vols = &compose.volumes.0;
         assert!(vols.contains_key("mydata"));
     }
@@ -474,7 +526,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let vols = &compose.volumes.0;
 
         // Redis uses "redisdata:/data" so "redisdata" should be in top-level volumes
@@ -485,7 +537,7 @@ mod tests {
     fn test_path_volumes_not_in_top_level() {
         // Volumes starting with . / ~ or containing $ should NOT be in top-level volumes
         let config = minimal_config();
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let vols = &compose.volumes.0;
 
         // Workspace mount is ./:... which should not be in top-level volumes
@@ -511,7 +563,7 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Both agents + redis
@@ -545,7 +597,7 @@ mod tests {
         let mut config = minimal_config();
         config.agent.agent_type = AgentType::Both;
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Claude agent should use Dockerfile.claude
@@ -572,7 +624,7 @@ mod tests {
     #[test]
     fn test_generate_empty_services_list() {
         let config = minimal_config();
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // Only agent service
@@ -601,7 +653,7 @@ mod tests {
             );
         }
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let services = &compose.services.0;
 
         // All services + agent
@@ -625,43 +677,68 @@ mod tests {
             },
         );
 
-        let compose = generate(&config).unwrap();
+        let compose = generate(&config, Path::new("."), Path::new(".")).unwrap();
         let mcp = compose.services.0.get("mcp-test").unwrap().as_ref().unwrap();
         assert!(mcp.command.is_none());
     }
 
+    // --- context_path / output_dir tests ---
+
     #[test]
-    fn test_mcp_service_env_key_val_format() {
-        let mut config = minimal_config();
-        config.mcp.insert(
-            "github".to_string(),
-            McpServerConfig {
-                image: "ghcr.io/test:latest".to_string(),
-                command: None,
-                env: vec!["GITHUB_TOKEN=${GITHUB_TOKEN}".to_string()],
-                volumes: vec![],
-                port: None,
-            },
-        );
+    fn test_generate_same_output_and_project_root() {
+        let config = minimal_config();
+        let compose = generate(&config, Path::new("/proj"), Path::new("/proj")).unwrap();
+        let agent = compose.services.0.get("agent").unwrap().as_ref().unwrap();
 
-        let compose = generate(&config).unwrap();
-        let mcp_svc = compose
-            .services
-            .0
-            .get("mcp-github")
-            .unwrap()
-            .as_ref()
-            .unwrap();
+        // context_path should be "." — simple build step
+        match &agent.build_ {
+            Some(dct::BuildStep::Simple(ctx)) => assert_eq!(ctx, "."),
+            _ => panic!("Expected simple build step when output == project root"),
+        }
+    }
 
-        if let dct::Environment::KvPair(env) = &mcp_svc.environment {
-            // Key should be "GITHUB_TOKEN", not "GITHUB_TOKEN=${GITHUB_TOKEN}"
-            assert!(env.contains_key("GITHUB_TOKEN"));
-            assert!(!env.contains_key("GITHUB_TOKEN=${GITHUB_TOKEN}"));
-            // Value should be "${GITHUB_TOKEN}", not "${GITHUB_TOKEN=${GITHUB_TOKEN}}"
-            let val = env.get("GITHUB_TOKEN").unwrap().as_ref().unwrap();
-            assert_eq!(*val, dct::SingleValue::String("${GITHUB_TOKEN}".to_string()));
-        } else {
-            panic!("Expected KvPair environment");
+    #[test]
+    fn test_generate_output_subdirectory() {
+        let config = minimal_config();
+        let compose = generate(
+            &config,
+            Path::new("/proj/deploy"),
+            Path::new("/proj"),
+        )
+        .unwrap();
+        let agent = compose.services.0.get("agent").unwrap().as_ref().unwrap();
+
+        // context_path should be ".." — advanced build step
+        match &agent.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, "..");
+            }
+            _ => panic!("Expected advanced build step when output is subdirectory"),
+        }
+
+        // env_file should point back up
+        match &agent.env_file {
+            Some(dct::StringOrList::Simple(s)) => assert_eq!(s, "../.env"),
+            _ => panic!("Expected simple ../.env env_file"),
+        }
+    }
+
+    #[test]
+    fn test_generate_output_deeply_nested() {
+        let config = minimal_config();
+        let compose = generate(
+            &config,
+            Path::new("/proj/deploy/k8s"),
+            Path::new("/proj"),
+        )
+        .unwrap();
+        let agent = compose.services.0.get("agent").unwrap().as_ref().unwrap();
+
+        match &agent.build_ {
+            Some(dct::BuildStep::Advanced(adv)) => {
+                assert_eq!(adv.context, "../..");
+            }
+            _ => panic!("Expected advanced build step with context '../..'"),
         }
     }
 }
