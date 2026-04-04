@@ -61,10 +61,7 @@ pub fn build(
     }
 
     // Workspace PVC
-    let workspace_pvc_size = config
-        .helm
-        .default_pvc_size
-        .clone();
+    let workspace_pvc_size = config.helm.default_pvc_size.clone();
     let workspace_mount_path = config.workspace.mount_path.clone();
 
     // Volume mounts: named volumes from config
@@ -128,8 +125,16 @@ fn get_auth_requirements(
             }
         }
         AgentType::Both => {
-            // For "both", the caller should build two separate AgentValues.
-            // This arm is a no-op.
+            if let Some(ref claude_auth) = config.auth.claude {
+                let claude_reqs = auth::claude::requirements(claude_auth, container_user);
+                reqs.env_vars.extend(claude_reqs.env_vars);
+                reqs.volumes.extend(claude_reqs.volumes);
+            }
+            if let Some(ref codex_auth) = config.auth.codex {
+                let codex_reqs = auth::codex::requirements(codex_auth, container_user);
+                reqs.env_vars.extend(codex_reqs.env_vars);
+                reqs.volumes.extend(codex_reqs.volumes);
+            }
         }
     }
 
@@ -252,7 +257,10 @@ mod tests {
     fn build_merges_infra_env() {
         let config = minimal_config();
         let infra_env = IndexMap::from([
-            ("DATABASE_URL".to_string(), "postgres://dev:pw@pg:5432/db".to_string()),
+            (
+                "DATABASE_URL".to_string(),
+                "postgres://dev:pw@pg:5432/db".to_string(),
+            ),
             ("REDIS_URL".to_string(), "redis://redis:6379".to_string()),
         ]);
         let av = build(&config, AgentType::Claude, &infra_env);
@@ -264,7 +272,10 @@ mod tests {
     #[test]
     fn build_merges_user_env() {
         let mut config = minimal_config();
-        config.environment.vars.insert("MY_VAR".to_string(), "my_value".to_string());
+        config
+            .environment
+            .vars
+            .insert("MY_VAR".to_string(), "my_value".to_string());
 
         let infra_env = IndexMap::new();
         let av = build(&config, AgentType::Claude, &infra_env);
@@ -275,11 +286,15 @@ mod tests {
     #[test]
     fn build_user_env_overwrites_infra_env() {
         let mut config = minimal_config();
-        config.environment.vars.insert("DATABASE_URL".to_string(), "override".to_string());
+        config
+            .environment
+            .vars
+            .insert("DATABASE_URL".to_string(), "override".to_string());
 
-        let infra_env = IndexMap::from([
-            ("DATABASE_URL".to_string(), "postgres://dev:pw@pg:5432/db".to_string()),
-        ]);
+        let infra_env = IndexMap::from([(
+            "DATABASE_URL".to_string(),
+            "postgres://dev:pw@pg:5432/db".to_string(),
+        )]);
         let av = build(&config, AgentType::Claude, &infra_env);
 
         // User env comes after infra, so it wins
@@ -298,7 +313,10 @@ mod tests {
         let infra_env = IndexMap::new();
         let av = build(&config, AgentType::Claude, &infra_env);
 
-        assert!(av.env_from_secret.contains(&"ANTHROPIC_API_KEY".to_string()));
+        assert!(
+            av.env_from_secret
+                .contains(&"ANTHROPIC_API_KEY".to_string())
+        );
     }
 
     #[test]
@@ -327,8 +345,14 @@ mod tests {
         let infra_env = IndexMap::new();
         let av = build(&config, AgentType::Claude, &infra_env);
 
-        assert!(av.env_from_secret.contains(&"AWS_ACCESS_KEY_ID".to_string()));
-        assert!(av.env_from_secret.contains(&"AWS_SECRET_ACCESS_KEY".to_string()));
+        assert!(
+            av.env_from_secret
+                .contains(&"AWS_ACCESS_KEY_ID".to_string())
+        );
+        assert!(
+            av.env_from_secret
+                .contains(&"AWS_SECRET_ACCESS_KEY".to_string())
+        );
         assert!(av.env_from_secret.contains(&"AWS_REGION".to_string()));
     }
 
@@ -373,7 +397,10 @@ mod tests {
         let infra_env = IndexMap::new();
         let av = build(&config, AgentType::Claude, &infra_env);
 
-        let data_mount = av.volume_mounts.iter().find(|v| v.mount_path == "/container/data");
+        let data_mount = av
+            .volume_mounts
+            .iter()
+            .find(|v| v.mount_path == "/container/data");
         assert!(data_mount.is_some());
         assert!(data_mount.unwrap().read_only);
     }
@@ -388,7 +415,10 @@ mod tests {
         let infra_env = IndexMap::new();
         let av = build(&config, AgentType::Claude, &infra_env);
 
-        let auth_mount = av.volume_mounts.iter().find(|v| v.mount_path.contains(".credentials.json"));
+        let auth_mount = av
+            .volume_mounts
+            .iter()
+            .find(|v| v.mount_path.contains(".credentials.json"));
         assert!(auth_mount.is_some());
         assert!(auth_mount.unwrap().read_only);
     }
@@ -426,7 +456,7 @@ mod tests {
         let av = build(&config, AgentType::Both, &infra_env);
 
         assert_eq!(av.agent_type, "both");
-        // "both" type doesn't add auth env from secret (caller should split)
+        // No auth configured in minimal_config, so env_from_secret is empty
         assert!(av.env_from_secret.is_empty());
     }
 }

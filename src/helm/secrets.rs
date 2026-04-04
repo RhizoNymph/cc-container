@@ -1,6 +1,4 @@
-use crate::config::project::{
-    AgentType, ClaudeAuthMethod, CodexAuthMethod, ProjectConfig,
-};
+use crate::config::project::{AgentType, ClaudeAuthMethod, CodexAuthMethod, ProjectConfig};
 use crate::helm::types::{SecretKeyRef, SecretsValues};
 use indexmap::IndexMap;
 
@@ -48,20 +46,102 @@ pub fn build(config: &ProjectConfig) -> SecretsValues {
         }
         match name.as_str() {
             "postgres" => {
-                service_credentials
-                    .insert("POSTGRES_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("POSTGRES_PASSWORD".to_string(), "changeme".to_string());
             }
             "mysql" => {
-                service_credentials
-                    .insert("MYSQL_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("MYSQL_PASSWORD".to_string(), "changeme".to_string());
                 service_credentials
                     .insert("MYSQL_ROOT_PASSWORD".to_string(), "changeme".to_string());
             }
             "mariadb" => {
-                service_credentials
-                    .insert("MARIADB_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("MARIADB_PASSWORD".to_string(), "changeme".to_string());
                 service_credentials
                     .insert("MARIADB_ROOT_PASSWORD".to_string(), "changeme".to_string());
+            }
+            "typesense" => {
+                service_credentials.insert("TYPESENSE_API_KEY".to_string(), "changeme".to_string());
+            }
+            "minio" => {
+                service_credentials
+                    .insert("MINIO_ACCESS_KEY".to_string(), "minioadmin".to_string());
+                service_credentials
+                    .insert("MINIO_SECRET_KEY".to_string(), "minioadmin".to_string());
+            }
+            "grafana" => {
+                service_credentials.insert("GRAFANA_PASSWORD".to_string(), "admin".to_string());
+            }
+            _ => {}
+        }
+    }
+
+    // Add computed connection URLs for database services
+    for (name, svc_config) in &config.services {
+        if !svc_config.enabled {
+            continue;
+        }
+        match name.as_str() {
+            "postgres" => {
+                let db = svc_config
+                    .extra
+                    .get("database")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("devdb");
+                let user = svc_config
+                    .extra
+                    .get("user")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("dev");
+                service_credentials.insert(
+                    "DATABASE_URL".to_string(),
+                    format!("postgres://{user}:changeme@postgres:5432/{db}"),
+                );
+            }
+            "mysql" => {
+                let db = svc_config
+                    .extra
+                    .get("database")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("devdb");
+                let user = svc_config
+                    .extra
+                    .get("user")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("dev");
+                // Only add MYSQL_DATABASE_URL if postgres already claims DATABASE_URL
+                if service_credentials.contains_key("DATABASE_URL") {
+                    service_credentials.insert(
+                        "MYSQL_URL".to_string(),
+                        format!("mysql://{user}:changeme@mysql:3306/{db}"),
+                    );
+                } else {
+                    service_credentials.insert(
+                        "DATABASE_URL".to_string(),
+                        format!("mysql://{user}:changeme@mysql:3306/{db}"),
+                    );
+                }
+            }
+            "mariadb" => {
+                let db = svc_config
+                    .extra
+                    .get("database")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("devdb");
+                let user = svc_config
+                    .extra
+                    .get("user")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("dev");
+                if service_credentials.contains_key("DATABASE_URL") {
+                    service_credentials.insert(
+                        "MARIADB_URL".to_string(),
+                        format!("mysql://{user}:changeme@mariadb:3306/{db}"),
+                    );
+                } else {
+                    service_credentials.insert(
+                        "DATABASE_URL".to_string(),
+                        format!("mysql://{user}:changeme@mariadb:3306/{db}"),
+                    );
+                }
             }
             _ => {}
         }
@@ -130,10 +210,7 @@ fn claude_auth_keys(method: ClaudeAuthMethod) -> Vec<SecretKeyRef> {
 }
 
 /// Return the secret key refs needed for a given Codex auth method.
-fn codex_auth_keys(
-    method: CodexAuthMethod,
-    custom_env_key: Option<&str>,
-) -> Vec<SecretKeyRef> {
+fn codex_auth_keys(method: CodexAuthMethod, custom_env_key: Option<&str>) -> Vec<SecretKeyRef> {
     match method {
         CodexAuthMethod::ApiKey => vec![SecretKeyRef {
             key: "OPENAI_API_KEY".to_string(),
@@ -408,8 +485,9 @@ mod tests {
         );
         let sv = build(&config);
 
-        assert_eq!(sv.service_credentials.len(), 1);
+        assert_eq!(sv.service_credentials.len(), 2);
         assert_eq!(sv.service_credentials["POSTGRES_PASSWORD"], "changeme");
+        assert!(sv.service_credentials.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -426,9 +504,10 @@ mod tests {
         );
         let sv = build(&config);
 
-        assert_eq!(sv.service_credentials.len(), 2);
+        assert_eq!(sv.service_credentials.len(), 3);
         assert_eq!(sv.service_credentials["MYSQL_PASSWORD"], "changeme");
         assert_eq!(sv.service_credentials["MYSQL_ROOT_PASSWORD"], "changeme");
+        assert!(sv.service_credentials.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -445,9 +524,10 @@ mod tests {
         );
         let sv = build(&config);
 
-        assert_eq!(sv.service_credentials.len(), 2);
+        assert_eq!(sv.service_credentials.len(), 3);
         assert_eq!(sv.service_credentials["MARIADB_PASSWORD"], "changeme");
         assert_eq!(sv.service_credentials["MARIADB_ROOT_PASSWORD"], "changeme");
+        assert!(sv.service_credentials.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -516,10 +596,12 @@ mod tests {
         );
         let sv = build(&config);
 
-        // postgres: 1 key, mysql: 2 keys, redis: 0 keys
-        assert_eq!(sv.service_credentials.len(), 3);
+        // postgres: 1 key + DATABASE_URL, mysql: 2 keys + MYSQL_URL, redis: 0 keys
+        assert_eq!(sv.service_credentials.len(), 5);
         assert!(sv.service_credentials.contains_key("POSTGRES_PASSWORD"));
+        assert!(sv.service_credentials.contains_key("DATABASE_URL"));
         assert!(sv.service_credentials.contains_key("MYSQL_PASSWORD"));
         assert!(sv.service_credentials.contains_key("MYSQL_ROOT_PASSWORD"));
+        assert!(sv.service_credentials.contains_key("MYSQL_URL"));
     }
 }

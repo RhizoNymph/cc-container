@@ -12,10 +12,7 @@ pub fn traefik(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
         command: Some(dct::Command::Simple(
             "--api.insecure=true --providers.docker=true --ping=true".to_string(),
         )),
-        ports: dct::Ports::Short(vec![
-            format!("{port}:80"),
-            "8080:8080".to_string(),
-        ]),
+        ports: dct::Ports::Short(vec![format!("{port}:80"), "8080:8080".to_string()]),
         volumes: vec![dct::Volumes::Simple(
             "/var/run/docker.sock:/var/run/docker.sock:ro".to_string(),
         )],

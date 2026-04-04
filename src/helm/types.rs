@@ -14,6 +14,8 @@ pub struct HelmValues {
     pub secrets: SecretsValues,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ingress: Option<IngressValues>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storage_class: Option<String>,
 }
 
 /// Agent container configuration in values.yaml.
@@ -69,6 +71,7 @@ pub struct ServiceValues {
     pub stateful: bool,
     pub ports: Vec<PortSpec>,
     pub env: IndexMap<String, String>,
+    pub env_from_secret: IndexMap<String, String>,
     pub agent_env: IndexMap<String, String>,
     pub volume_mounts: Vec<VolumeMount>,
     pub pvc_size: String,
@@ -321,6 +324,7 @@ mod tests {
                 protocol: "TCP".to_string(),
             }],
             env: IndexMap::new(),
+            env_from_secret: IndexMap::new(),
             agent_env: IndexMap::new(),
             volume_mounts: vec![],
             pvc_size: "10Gi".to_string(),
@@ -408,6 +412,7 @@ mod tests {
                 service_credentials: IndexMap::new(),
             },
             ingress: None,
+            storage_class: None,
         };
         let yaml = serde_yaml::to_string(&hv).unwrap();
         assert!(!yaml.contains("ingress"));
