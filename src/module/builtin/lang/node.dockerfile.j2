@@ -1,5 +1,6 @@
 # Node.js {{ params.version }}
 {% if base_os == "alpine" %}
+# Alpine: system package, version {{ params.version }} is advisory; use Debian for pinning
 RUN apk add --no-cache nodejs npm \
     && npm install -g corepack \
     && corepack enable
