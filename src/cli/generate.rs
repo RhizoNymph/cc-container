@@ -1,6 +1,9 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+pub use crate::generate::GenerateTarget;
+use crate::generate::{GenerateOptions, GeneratedProject};
+
 #[derive(Parser)]
 pub struct GenerateArgs {
     /// Output directory (default: target-dir or CWD)
@@ -20,16 +23,6 @@ pub struct GenerateArgs {
     pub diff: bool,
 }
 
-#[derive(Debug, Clone, clap::ValueEnum)]
-pub enum GenerateTarget {
-    Dockerfile,
-    Compose,
-    Firewall,
-    Env,
-    Mcp,
-    Helm,
-}
-
 pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
     let target_dir = global
         .target_dir
@@ -41,180 +34,39 @@ pub fn run(args: &GenerateArgs, global: &super::GlobalOpts) -> crate::error::Res
         .clone()
         .unwrap_or_else(|| target_dir.join("cc-container.toml"));
 
-    let config = crate::config::load_effective_config(&config_path)?;
-
-    // Validate config
-    let warnings = crate::config::validate::validate_config(&config)?;
-    for w in &warnings {
-        eprintln!("warning: {w}");
-    }
-
     let output_dir = args.output.clone().unwrap_or(target_dir);
-    std::fs::create_dir_all(&output_dir)?;
+    let options = GenerateOptions {
+        targets: args
+            .only
+            .clone()
+            .unwrap_or_else(crate::generate::default_targets),
+        validate: true,
+    };
 
-    let targets = args.only.clone().unwrap_or_else(|| {
-        vec![
-            GenerateTarget::Dockerfile,
-            GenerateTarget::Compose,
-            GenerateTarget::Env,
-            GenerateTarget::Firewall,
-            GenerateTarget::Mcp,
-        ]
-    });
+    let project = crate::generate::generate_from_path(&config_path, options)?;
 
-    for target in &targets {
-        match target {
-            GenerateTarget::Dockerfile => {
-                generate_dockerfile(&config, &output_dir, args.dry_run)?;
-                // Co-generate files the Dockerfile COPYs, but only if they
-                // aren't already in the target list (avoids double output)
-                let firewall_already_targeted = targets
-                    .iter()
-                    .any(|t| matches!(t, GenerateTarget::Firewall));
-                if config.firewall.enabled && !firewall_already_targeted {
-                    generate_firewall(&config, &output_dir, args.dry_run)?;
-                }
-            }
-            GenerateTarget::Compose => {
-                generate_compose(&config, &output_dir, args.dry_run)?;
-            }
-            GenerateTarget::Env => {
-                generate_env(&config, &output_dir, args.dry_run)?;
-            }
-            GenerateTarget::Firewall => {
-                if config.firewall.enabled {
-                    generate_firewall(&config, &output_dir, args.dry_run)?;
-                }
-            }
-            GenerateTarget::Mcp => {
-                if !config.mcp.is_empty() {
-                    generate_mcp(&config, &output_dir, args.dry_run)?;
-                }
-            }
-            GenerateTarget::Helm => {
-                generate_helm(&config, &output_dir, args.dry_run)?;
-            }
-        }
+    for warning in &project.warnings {
+        eprintln!("warning: {warning}");
     }
 
-    if !args.dry_run {
+    if args.dry_run {
+        print_generated(&project);
+    } else {
+        crate::generate::write_generated(&project, &output_dir)?;
+        for file in &project.files {
+            eprintln!("  wrote {}", output_dir.join(&file.path).display());
+        }
         eprintln!("Generated files in {}", output_dir.display());
     }
 
     Ok(())
 }
 
-fn generate_dockerfile(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    use crate::config::project::AgentType;
-    use crate::module::{DockerfileGenerator, ModuleRegistry};
-
-    let registry = ModuleRegistry::new();
-
-    // Load user modules from project directory if present
-    // (registry.load_user_modules is available but we skip for now)
-
-    let generator = DockerfileGenerator::new(&registry);
-
-    match config.agent.agent_type {
-        AgentType::Both => {
-            // Generate two separate Dockerfiles
-            for (agent, filename) in [
-                (AgentType::Claude, "Dockerfile.claude"),
-                (AgentType::Codex, "Dockerfile.codex"),
-            ] {
-                let content = generator.generate(config, agent)?;
-                write_output(output_dir, filename, &content, dry_run)?;
-            }
-        }
-        agent_type => {
-            let content = generator.generate(config, agent_type)?;
-            write_output(output_dir, "Dockerfile", &content, dry_run)?;
-        }
+fn print_generated(project: &GeneratedProject) {
+    for file in &project.files {
+        println!("=== {} ===", file.path.display());
+        println!("{}", file.contents);
     }
-
-    Ok(())
-}
-
-fn write_output(
-    output_dir: &std::path::Path,
-    filename: &str,
-    content: &str,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    if dry_run {
-        println!("=== {} ===", filename);
-        println!("{content}");
-    } else {
-        let path = output_dir.join(filename);
-        std::fs::write(&path, content)?;
-        eprintln!("  wrote {}", path.display());
-    }
-    Ok(())
-}
-
-fn generate_compose(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    let compose = crate::compose::generator::generate(config)?;
-    let yaml = serde_yaml::to_string(&compose).map_err(crate::error::Error::YamlSerialize)?;
-    write_output(output_dir, "docker-compose.yml", &yaml, dry_run)
-}
-
-fn generate_env(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    let content = crate::compose::env::generate_env_example(config);
-    write_output(output_dir, ".env.example", &content, dry_run)
-}
-
-fn generate_firewall(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    let content = crate::firewall::generator::generate(config);
-    write_output(output_dir, "init-firewall.sh", &content, dry_run)
-}
-
-fn generate_mcp(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    let content = crate::mcp::config::generate_mcp_json(config)?;
-    write_output(output_dir, ".mcp.json", &content, dry_run)
-}
-
-fn generate_helm(
-    config: &crate::config::ProjectConfig,
-    output_dir: &std::path::Path,
-    dry_run: bool,
-) -> crate::error::Result<()> {
-    let chart = crate::helm::chart::generate(config)?;
-    let chart_dir = output_dir.join("chart").join(&config.project.name);
-
-    for (path, content) in &chart.files {
-        let full_path = chart_dir.join(path);
-        if dry_run {
-            println!("=== chart/{}/{} ===", config.project.name, path);
-            println!("{content}");
-        } else {
-            if let Some(parent) = full_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&full_path, content)?;
-            eprintln!("  wrote {}", full_path.display());
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -261,23 +113,6 @@ mod tests {
         let path = dir.join("cc-container.toml");
         std::fs::write(&path, toml_str).unwrap();
         path
-    }
-
-    // --- write_output tests ---
-
-    #[test]
-    fn write_output_creates_file() {
-        let dir = tempfile::tempdir().unwrap();
-        write_output(dir.path(), "test.txt", "hello", false).unwrap();
-        let content = std::fs::read_to_string(dir.path().join("test.txt")).unwrap();
-        assert_eq!(content, "hello");
-    }
-
-    #[test]
-    fn write_output_dry_run_does_not_create_file() {
-        let dir = tempfile::tempdir().unwrap();
-        write_output(dir.path(), "test.txt", "hello", true).unwrap();
-        assert!(!dir.path().join("test.txt").exists());
     }
 
     // --- run() integration tests ---
@@ -375,7 +210,6 @@ mod tests {
         };
 
         run(&args, &global).unwrap();
-        // Firewall is disabled by default, so no file should be created
         assert!(!out_dir.path().join("init-firewall.sh").exists());
     }
 
@@ -385,6 +219,7 @@ mod tests {
 
         let mut config = minimal_config();
         config.firewall.enabled = true;
+        config.runtime.cap_add.push("NET_ADMIN".to_string());
         config.firewall.allowed_domains = vec!["api.anthropic.com".to_string()];
         let toml_str = toml::to_string_pretty(&config).unwrap();
         let config_path = dir.path().join("cc-container.toml");
@@ -443,7 +278,7 @@ mod tests {
         let args = GenerateArgs {
             output: Some(out_dir.path().to_path_buf()),
             dry_run: false,
-            only: None, // default: all targets
+            only: None,
             diff: false,
         };
         let global = super::super::GlobalOpts {
@@ -481,7 +316,6 @@ mod tests {
         };
 
         run(&args, &global).unwrap();
-        // No files should be written in dry-run mode
         let entries: Vec<_> = std::fs::read_dir(out_dir.path()).unwrap().collect();
         assert_eq!(entries.len(), 0);
     }
