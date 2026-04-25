@@ -1,12 +1,30 @@
+//! Public library API for generating containerized AI coding-agent project files.
+//!
+//! Prefer the `generate` facade for stable library integration. The lower-level
+//! modules remain public for existing callers but should be treated as unstable
+//! implementation details until they are explicitly documented as stable.
+
+/// Authentication environment and volume helpers.
 pub mod auth;
+/// CLI command implementation. Unstable internal API.
 pub mod cli;
+/// Docker Compose generation internals. Unstable internal API.
 pub mod compose;
+/// Project and user configuration types/loaders.
 pub mod config;
+/// Crate error types.
 pub mod error;
+/// Firewall domain defaults and shell script generation internals.
 pub mod firewall;
+/// Stable generation facade for library callers.
+pub mod generate;
+/// Helm chart generation internals. Unstable internal API.
 pub mod helm;
+/// MCP config generation internals. Unstable internal API.
 pub mod mcp;
+/// Dockerfile module registry/rendering internals. Unstable internal API.
 pub mod module;
+/// Interactive init wizard internals. Unstable internal API.
 pub mod wizard;
 
 // Tests for the firewall feature.

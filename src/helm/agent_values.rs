@@ -125,8 +125,16 @@ fn get_auth_requirements(
             }
         }
         AgentType::Both => {
-            // For "both", the caller should build two separate AgentValues.
-            // This arm is a no-op.
+            if let Some(ref claude_auth) = config.auth.claude {
+                let claude_reqs = auth::claude::requirements(claude_auth, container_user);
+                reqs.env_vars.extend(claude_reqs.env_vars);
+                reqs.volumes.extend(claude_reqs.volumes);
+            }
+            if let Some(ref codex_auth) = config.auth.codex {
+                let codex_reqs = auth::codex::requirements(codex_auth, container_user);
+                reqs.env_vars.extend(codex_reqs.env_vars);
+                reqs.volumes.extend(codex_reqs.volumes);
+            }
         }
     }
 
@@ -448,7 +456,7 @@ mod tests {
         let av = build(&config, AgentType::Both, &infra_env);
 
         assert_eq!(av.agent_type, "both");
-        // "both" type doesn't add auth env from secret (caller should split)
+        // No auth configured in minimal_config, so env_from_secret is empty
         assert!(av.env_from_secret.is_empty());
     }
 }
