@@ -206,13 +206,22 @@ pub fn mongodb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
 pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)> {
     let version = config.version.as_deref().unwrap_or("latest");
     let host_port = config.port.unwrap_or(26257);
+    let admin_port = config
+        .extra
+        .get("admin_port")
+        .and_then(|v| v.as_integer())
+        .map(|v| v as u16)
+        .unwrap_or(8080);
 
     let svc = dct::Service {
         image: Some(format!("cockroachdb/cockroach:{version}")),
         command: Some(dct::Command::Simple(
             "start-single-node --insecure".to_string(),
         )),
-        ports: dct::Ports::Short(vec![format!("{host_port}:26257"), "8080:8080".to_string()]),
+        ports: dct::Ports::Short(vec![
+            format!("{host_port}:26257"),
+            format!("{admin_port}:8080"),
+        ]),
         volumes: vec![dct::Volumes::Simple(
             "crdbdata:/cockroach/cockroach-data".to_string(),
         )],

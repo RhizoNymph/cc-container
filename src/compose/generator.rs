@@ -69,10 +69,17 @@ pub fn generate(config: &ProjectConfig) -> Result<dct::Compose> {
 
         let mut mcp_env: IndexMap<String, Option<dct::SingleValue>> = IndexMap::new();
         for env_var in &mcp_config.env {
-            mcp_env.insert(
-                env_var.clone(),
-                Some(dct::SingleValue::String(format!("${{{env_var}}}"))),
-            );
+            if let Some((key, value)) = env_var.split_once('=') {
+                mcp_env.insert(
+                    key.to_string(),
+                    Some(dct::SingleValue::String(value.to_string())),
+                );
+            } else {
+                mcp_env.insert(
+                    env_var.clone(),
+                    Some(dct::SingleValue::String(format!("${{{env_var}}}"))),
+                );
+            }
         }
 
         let mcp_volumes: Vec<dct::Volumes> = mcp_config

@@ -36,7 +36,7 @@ pub fn memcached(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Strin
         ports: dct::Ports::Short(vec![format!("{host_port}:11211")]),
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
-                "echo stats | nc localhost 11211 || exit 1".to_string(),
+                "echo stats | busybox nc 127.0.0.1 11211 || exit 1".to_string(),
             )),
             interval: Some("10s".to_string()),
             timeout: Some("5s".to_string()),
