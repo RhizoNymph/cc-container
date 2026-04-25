@@ -22,6 +22,14 @@ pub fn all_templates() -> Vec<(&'static str, &'static str)> {
         ),
         ("ingress.yaml", include_str!("builtin/ingress.yaml")),
         (
+            "agent-service.yaml",
+            include_str!("builtin/agent-service.yaml"),
+        ),
+        (
+            "deployment-pvc.yaml",
+            include_str!("builtin/deployment-pvc.yaml"),
+        ),
+        (
             "mcp-deployment.yaml",
             include_str!("builtin/mcp-deployment.yaml"),
         ),
@@ -35,7 +43,7 @@ mod tests {
     #[test]
     fn all_templates_returns_expected_count() {
         let templates = all_templates();
-        assert_eq!(templates.len(), 11);
+        assert_eq!(templates.len(), 13);
     }
 
     #[test]

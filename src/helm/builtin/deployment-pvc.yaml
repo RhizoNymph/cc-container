@@ -1,0 +1,23 @@
+{{- range $name, $svc := .Values.services }}
+{{- if and $svc.enabled (not $svc.stateful) $svc.pvcSize $svc.volumeMounts }}
+{{- range $svc.volumeMounts }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chart.fullname" $ }}-{{ $name }}-{{ .name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $svc.pvcSize }}
+  {{- if $.Values.storageClass }}
+  storageClassName: {{ $.Values.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

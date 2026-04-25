@@ -24,7 +24,7 @@ spec:
         runAsNonRoot: {{ $.Values.agent.securityContext.runAsNonRoot }}
       containers:
         - name: agent-{{ $suffix }}
-          image: "{{ $.Values.agent.image.repository }}:{{ $.Values.agent.image.tag }}"
+          image: "{{ include "chart.imageRef" $.Values.agent.image }}"
           imagePullPolicy: {{ $.Values.agent.image.pullPolicy }}
           env:
             {{- range $key, $val := $.Values.agent.env }}
@@ -67,7 +67,7 @@ spec:
       volumes:
         - name: workspace
           persistentVolumeClaim:
-            claimName: {{ include "chart.fullname" $ }}-workspace
+            claimName: {{ include "chart.fullname" $ }}-workspace-{{ $suffix }}
 {{- end }}
 {{- else }}
 ---
@@ -94,7 +94,7 @@ spec:
         runAsNonRoot: {{ .Values.agent.securityContext.runAsNonRoot }}
       containers:
         - name: agent
-          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+          image: "{{ include "chart.imageRef" .Values.agent.image }}"
           imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
           env:
             {{- range $key, $val := .Values.agent.env }}

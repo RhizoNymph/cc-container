@@ -1,3 +1,23 @@
+{{- if eq .Values.agent.agentType "both" }}
+{{- range $suffix := list "claude" "codex" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chart.fullname" $ }}-workspace-{{ $suffix }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $.Values.agent.workspacePvcSize }}
+  {{- if $.Values.storageClass }}
+  storageClassName: {{ $.Values.storageClass }}
+  {{- end }}
+{{- end }}
+{{- else }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -13,3 +33,4 @@ spec:
   {{- if .Values.storageClass }}
   storageClassName: {{ .Values.storageClass }}
   {{- end }}
+{{- end }}

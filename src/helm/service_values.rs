@@ -5,6 +5,13 @@ use crate::helm::types::{
 };
 use indexmap::IndexMap;
 
+/// Result of building a service: (ServiceValues, agent_env, agent_env_from_secret).
+type ServiceBuildResult = Result<(
+    ServiceValues,
+    IndexMap<String, String>,
+    IndexMap<String, String>,
+)>;
+
 /// Helper to extract a string value from the service config extra map.
 fn get_str(config: &ServiceConfig, key: &str, default: &str) -> String {
     config
@@ -40,13 +47,11 @@ fn port(name: &str, container_port: u16) -> PortSpec {
 
 /// Build helm ServiceValues from a named service template.
 ///
-/// Returns `(ServiceValues, agent_env)` where `agent_env` is the map of
-/// environment variables to inject into the agent container (DATABASE_URL,
-/// REDIS_URL, etc.).
-pub fn build_service(
-    name: &str,
-    config: &ServiceConfig,
-) -> Result<(ServiceValues, IndexMap<String, String>)> {
+/// Returns `(ServiceValues, agent_env, agent_env_from_secret)` where:
+/// - `agent_env` is the map of plain env vars for the agent container
+/// - `agent_env_from_secret` is the map of env vars that should come from
+///   the K8s Secret (e.g., DATABASE_URL containing credentials)
+pub fn build_service(name: &str, config: &ServiceConfig) -> ServiceBuildResult {
     match name {
         "postgres" => postgres(config),
         "mysql" => mysql(config),
@@ -70,7 +75,7 @@ pub fn build_service(
     }
 }
 
-fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn postgres(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("16");
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
@@ -90,11 +95,8 @@ fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         env: IndexMap::from([
             ("POSTGRES_DB".to_string(), db.clone()),
             ("POSTGRES_USER".to_string(), user.clone()),
-            (
-                "POSTGRES_PASSWORD".to_string(),
-                format!("${{{password_env}}}"),
-            ),
         ]),
+        env_from_secret: IndexMap::from([("POSTGRES_PASSWORD".to_string(), password_env.clone())]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -117,15 +119,14 @@ fn postgres(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "DATABASE_URL".to_string(),
-        format!("postgres://{user}:${{{password_env}}}@postgres:5432/{db}"),
-    )]);
+    let agent_env = IndexMap::new();
+    let agent_env_from_secret =
+        IndexMap::from([("DATABASE_URL".to_string(), "DATABASE_URL".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, agent_env_from_secret))
 }
 
-fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn mysql(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("8");
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
@@ -146,11 +147,10 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         env: IndexMap::from([
             ("MYSQL_DATABASE".to_string(), db.clone()),
             ("MYSQL_USER".to_string(), user.clone()),
-            ("MYSQL_PASSWORD".to_string(), format!("${{{password_env}}}")),
-            (
-                "MYSQL_ROOT_PASSWORD".to_string(),
-                format!("${{{root_password_env}}}"),
-            ),
+        ]),
+        env_from_secret: IndexMap::from([
+            ("MYSQL_PASSWORD".to_string(), password_env.clone()),
+            ("MYSQL_ROOT_PASSWORD".to_string(), root_password_env.clone()),
         ]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -174,15 +174,14 @@ fn mysql(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mysql:3306/{db}"),
-    )]);
+    let agent_env = IndexMap::new();
+    let agent_env_from_secret =
+        IndexMap::from([("DATABASE_URL".to_string(), "DATABASE_URL".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, agent_env_from_secret))
 }
 
-fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn mariadb(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("11");
     let db = get_str(config, "database", "devdb");
     let user = get_str(config, "user", "dev");
@@ -203,13 +202,12 @@ fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         env: IndexMap::from([
             ("MARIADB_DATABASE".to_string(), db.clone()),
             ("MARIADB_USER".to_string(), user.clone()),
-            (
-                "MARIADB_PASSWORD".to_string(),
-                format!("${{{password_env}}}"),
-            ),
+        ]),
+        env_from_secret: IndexMap::from([
+            ("MARIADB_PASSWORD".to_string(), password_env.clone()),
             (
                 "MARIADB_ROOT_PASSWORD".to_string(),
-                format!("${{{root_password_env}}}"),
+                root_password_env.clone(),
             ),
         ]),
         agent_env: IndexMap::new(),
@@ -234,15 +232,14 @@ fn mariadb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([(
-        "DATABASE_URL".to_string(),
-        format!("mysql://{user}:${{{password_env}}}@mariadb:3306/{db}"),
-    )]);
+    let agent_env = IndexMap::new();
+    let agent_env_from_secret =
+        IndexMap::from([("DATABASE_URL".to_string(), "DATABASE_URL".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, agent_env_from_secret))
 }
 
-fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn mongodb(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("7");
 
     let svc = ServiceValues {
@@ -257,6 +254,7 @@ fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         stateful: true,
         ports: vec![port("mongodb", 27017)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -284,10 +282,10 @@ fn mongodb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         "mongodb://mongodb:27017".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn cockroachdb(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -302,6 +300,7 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         stateful: true,
         ports: vec![port("sql", 26257), port("http", 8080)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -332,10 +331,10 @@ fn cockroachdb(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         "postgres://root@cockroachdb:26257/defaultdb?sslmode=disable".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn redis(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("7");
 
     let svc = ServiceValues {
@@ -350,6 +349,7 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         stateful: true,
         ports: vec![port("redis", 6379)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -374,10 +374,10 @@ fn redis(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
     let agent_env = IndexMap::from([("REDIS_URL".to_string(), "redis://redis:6379".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn memcached(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("1");
 
     let svc = ServiceValues {
@@ -392,6 +392,7 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         stateful: false,
         ports: vec![port("memcached", 11211)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
         pvc_size: String::new(),
@@ -412,10 +413,10 @@ fn memcached(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
 
     let agent_env = IndexMap::from([("MEMCACHED_URL".to_string(), "memcached:11211".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn rabbitmq(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("3-management");
 
     let svc = ServiceValues {
@@ -430,6 +431,7 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         stateful: true,
         ports: vec![port("amqp", 5672), port("management", 15672)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -457,10 +459,10 @@ fn rabbitmq(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, S
         "amqp://guest:guest@rabbitmq:5672".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn kafka(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -475,6 +477,7 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         stateful: true,
         ports: vec![port("kafka", 9092), port("schema-registry", 8081)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -509,10 +512,10 @@ fn kafka(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
 
     let agent_env = IndexMap::from([("KAFKA_BROKERS".to_string(), "kafka:9092".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn nats(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -527,6 +530,7 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
         stateful: true,
         ports: vec![port("nats", 4222), port("monitoring", 8222)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -555,10 +559,10 @@ fn nats(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Strin
 
     let agent_env = IndexMap::from([("NATS_URL".to_string(), "nats://nats:4222".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn elasticsearch(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("8");
 
     let svc = ServiceValues {
@@ -577,6 +581,7 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
             ("xpack.security.enabled".to_string(), "false".to_string()),
             ("ES_JAVA_OPTS".to_string(), "-Xms512m -Xmx512m".to_string()),
         ]),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -604,10 +609,10 @@ fn elasticsearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<Stri
         "http://elasticsearch:9200".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn meilisearch(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -622,6 +627,7 @@ fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         stateful: true,
         ports: vec![port("http", 7700)],
         env: IndexMap::from([("MEILI_ENV".to_string(), "development".to_string())]),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -649,10 +655,10 @@ fn meilisearch(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String
         "http://meilisearch:7700".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn typesense(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -666,13 +672,11 @@ fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         category: "search".to_string(),
         stateful: true,
         ports: vec![port("http", 8108)],
-        env: IndexMap::from([
-            (
-                "TYPESENSE_API_KEY".to_string(),
-                "${TYPESENSE_API_KEY:-changeme}".to_string(),
-            ),
-            ("TYPESENSE_DATA_DIR".to_string(), "/data".to_string()),
-        ]),
+        env: IndexMap::from([("TYPESENSE_DATA_DIR".to_string(), "/data".to_string())]),
+        env_from_secret: IndexMap::from([(
+            "TYPESENSE_API_KEY".to_string(),
+            "TYPESENSE_API_KEY".to_string(),
+        )]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -700,10 +704,10 @@ fn typesense(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, 
         "http://typesense:8108".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn minio(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -717,14 +721,15 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         category: "storage".to_string(),
         stateful: true,
         ports: vec![port("api", 9000), port("console", 9001)],
-        env: IndexMap::from([
+        env: IndexMap::new(),
+        env_from_secret: IndexMap::from([
             (
                 "MINIO_ROOT_USER".to_string(),
-                "${MINIO_ACCESS_KEY:-minioadmin}".to_string(),
+                "MINIO_ACCESS_KEY".to_string(),
             ),
             (
                 "MINIO_ROOT_PASSWORD".to_string(),
-                "${MINIO_SECRET_KEY:-minioadmin}".to_string(),
+                "MINIO_SECRET_KEY".to_string(),
             ),
         ]),
         agent_env: IndexMap::new(),
@@ -754,22 +759,22 @@ fn minio(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         resources: default_resources(),
     };
 
-    let agent_env = IndexMap::from([
-        ("S3_ENDPOINT".to_string(), "http://minio:9000".to_string()),
+    let agent_env = IndexMap::from([("S3_ENDPOINT".to_string(), "http://minio:9000".to_string())]);
+    let agent_env_from_secret = IndexMap::from([
         (
             "S3_ACCESS_KEY_ID".to_string(),
-            "${MINIO_ACCESS_KEY:-minioadmin}".to_string(),
+            "MINIO_ACCESS_KEY".to_string(),
         ),
         (
             "S3_SECRET_ACCESS_KEY".to_string(),
-            "${MINIO_SECRET_KEY:-minioadmin}".to_string(),
+            "MINIO_SECRET_KEY".to_string(),
         ),
     ]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, agent_env_from_secret))
 }
 
-fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn prometheus(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -784,6 +789,7 @@ fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String,
         stateful: true,
         ports: vec![port("http", 9090)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
             name: "data".to_string(),
@@ -811,10 +817,10 @@ fn prometheus(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String,
         "http://prometheus:9090".to_string(),
     )]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn grafana(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -828,9 +834,10 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         category: "monitoring".to_string(),
         stateful: false,
         ports: vec![port("http", 3000)],
-        env: IndexMap::from([(
+        env: IndexMap::new(),
+        env_from_secret: IndexMap::from([(
             "GF_SECURITY_ADMIN_PASSWORD".to_string(),
-            "${GRAFANA_PASSWORD:-admin}".to_string(),
+            "GRAFANA_PASSWORD".to_string(),
         )]),
         agent_env: IndexMap::new(),
         volume_mounts: vec![VolumeMount {
@@ -857,10 +864,10 @@ fn grafana(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
     let agent_env =
         IndexMap::from([("GRAFANA_URL".to_string(), "http://grafana:3000".to_string())]);
 
-    Ok((svc, agent_env))
+    Ok((svc, agent_env, IndexMap::new()))
 }
 
-fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn traefik(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -875,6 +882,7 @@ fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         stateful: false,
         ports: vec![port("http", 80)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
         pvc_size: String::new(),
@@ -897,10 +905,10 @@ fn traefik(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, St
         resources: default_resources(),
     };
 
-    Ok((svc, IndexMap::new()))
+    Ok((svc, IndexMap::new(), IndexMap::new()))
 }
 
-fn nginx(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, String>)> {
+fn nginx(config: &ServiceConfig) -> ServiceBuildResult {
     let version = config.version.as_deref().unwrap_or("latest");
 
     let svc = ServiceValues {
@@ -915,6 +923,7 @@ fn nginx(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         stateful: false,
         ports: vec![port("http", 80)],
         env: IndexMap::new(),
+        env_from_secret: IndexMap::new(),
         agent_env: IndexMap::new(),
         volume_mounts: vec![],
         pvc_size: String::new(),
@@ -933,7 +942,7 @@ fn nginx(config: &ServiceConfig) -> Result<(ServiceValues, IndexMap<String, Stri
         resources: default_resources(),
     };
 
-    Ok((svc, IndexMap::new()))
+    Ok((svc, IndexMap::new(), IndexMap::new()))
 }
 
 #[cfg(test)]
@@ -998,7 +1007,7 @@ mod tests {
     #[test]
     fn postgres_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("postgres", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("postgres", &config).unwrap();
 
         assert_eq!(svc.image.repository, "postgres");
         assert_eq!(svc.image.tag, "16");
@@ -1025,13 +1034,11 @@ mod tests {
         // Env vars
         assert!(svc.env.contains_key("POSTGRES_DB"));
         assert!(svc.env.contains_key("POSTGRES_USER"));
-        assert!(svc.env.contains_key("POSTGRES_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("POSTGRES_PASSWORD"));
 
-        // Agent env
-        assert!(env.contains_key("DATABASE_URL"));
-        let url = &env["DATABASE_URL"];
-        assert!(url.starts_with("postgres://dev:"));
-        assert!(url.contains("@postgres:5432/devdb"));
+        // Agent env (DATABASE_URL now in secret_env)
+        assert!(env.is_empty());
+        assert!(_secret_env.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -1040,7 +1047,7 @@ mod tests {
             version: Some("15".to_string()),
             ..default_config()
         };
-        let (svc, _) = build_service("postgres", &config).unwrap();
+        let (svc, _, _) = build_service("postgres", &config).unwrap();
         assert_eq!(svc.image.tag, "15");
     }
 
@@ -1059,12 +1066,12 @@ mod tests {
             extra,
             ..default_config()
         };
-        let (svc, env) = build_service("postgres", &config).unwrap();
+        let (svc, _env, secret_env) = build_service("postgres", &config).unwrap();
 
         assert_eq!(svc.env["POSTGRES_DB"], "mydb");
         assert_eq!(svc.env["POSTGRES_USER"], "myuser");
-        assert!(env["DATABASE_URL"].contains("myuser:"));
-        assert!(env["DATABASE_URL"].contains("/mydb"));
+        // DATABASE_URL is now referenced from secret
+        assert!(secret_env.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -1078,10 +1085,10 @@ mod tests {
             extra,
             ..default_config()
         };
-        let (svc, env) = build_service("postgres", &config).unwrap();
+        let (svc, _env, secret_env) = build_service("postgres", &config).unwrap();
 
-        assert_eq!(svc.env["POSTGRES_PASSWORD"], "${MY_PG_PASS}");
-        assert!(env["DATABASE_URL"].contains("${MY_PG_PASS}"));
+        assert_eq!(svc.env_from_secret["POSTGRES_PASSWORD"], "MY_PG_PASS");
+        assert!(secret_env.contains_key("DATABASE_URL"));
     }
 
     // -- MySQL tests --
@@ -1089,7 +1096,7 @@ mod tests {
     #[test]
     fn mysql_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("mysql", &config).unwrap();
+        let (svc, _env, secret_env) = build_service("mysql", &config).unwrap();
 
         assert_eq!(svc.image.repository, "mysql");
         assert_eq!(svc.image.tag, "8");
@@ -1098,8 +1105,8 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 3306);
         assert!(svc.env.contains_key("MYSQL_DATABASE"));
         assert!(svc.env.contains_key("MYSQL_USER"));
-        assert!(svc.env.contains_key("MYSQL_PASSWORD"));
-        assert!(svc.env.contains_key("MYSQL_ROOT_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("MYSQL_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("MYSQL_ROOT_PASSWORD"));
         assert!(
             svc.healthcheck
                 .command
@@ -1107,7 +1114,7 @@ mod tests {
                 .any(|c| c.contains("mysqladmin"))
         );
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/mysql");
-        assert!(env["DATABASE_URL"].starts_with("mysql://dev:"));
+        assert!(secret_env.contains_key("DATABASE_URL"));
     }
 
     #[test]
@@ -1125,10 +1132,10 @@ mod tests {
             extra,
             ..default_config()
         };
-        let (svc, _) = build_service("mysql", &config).unwrap();
+        let (svc, _, _) = build_service("mysql", &config).unwrap();
 
-        assert_eq!(svc.env["MYSQL_PASSWORD"], "${CUSTOM_PW}");
-        assert_eq!(svc.env["MYSQL_ROOT_PASSWORD"], "${CUSTOM_ROOT_PW}");
+        assert_eq!(svc.env_from_secret["MYSQL_PASSWORD"], "CUSTOM_PW");
+        assert_eq!(svc.env_from_secret["MYSQL_ROOT_PASSWORD"], "CUSTOM_ROOT_PW");
     }
 
     // -- MariaDB tests --
@@ -1136,21 +1143,21 @@ mod tests {
     #[test]
     fn mariadb_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("mariadb", &config).unwrap();
+        let (svc, _env, secret_env) = build_service("mariadb", &config).unwrap();
 
         assert_eq!(svc.image.repository, "mariadb");
         assert_eq!(svc.image.tag, "11");
         assert!(svc.stateful);
         assert!(svc.env.contains_key("MARIADB_DATABASE"));
-        assert!(svc.env.contains_key("MARIADB_PASSWORD"));
-        assert!(svc.env.contains_key("MARIADB_ROOT_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("MARIADB_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("MARIADB_ROOT_PASSWORD"));
         assert!(
             svc.healthcheck
                 .command
                 .iter()
                 .any(|c| c.contains("mariadb-admin"))
         );
-        assert!(env["DATABASE_URL"].contains("@mariadb:3306/devdb"));
+        assert!(secret_env.contains_key("DATABASE_URL"));
     }
 
     // -- MongoDB tests --
@@ -1158,7 +1165,7 @@ mod tests {
     #[test]
     fn mongodb_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("mongodb", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("mongodb", &config).unwrap();
 
         assert_eq!(svc.image.repository, "mongo");
         assert_eq!(svc.image.tag, "7");
@@ -1179,7 +1186,7 @@ mod tests {
     #[test]
     fn cockroachdb_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("cockroachdb", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("cockroachdb", &config).unwrap();
 
         assert_eq!(svc.image.repository, "cockroachdb/cockroach");
         assert_eq!(svc.image.tag, "latest");
@@ -1203,7 +1210,7 @@ mod tests {
     #[test]
     fn redis_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("redis", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("redis", &config).unwrap();
 
         assert_eq!(svc.image.repository, "redis");
         assert_eq!(svc.image.tag, "7");
@@ -1225,7 +1232,7 @@ mod tests {
     #[test]
     fn memcached_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("memcached", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("memcached", &config).unwrap();
 
         assert_eq!(svc.image.repository, "memcached");
         assert_eq!(svc.image.tag, "1");
@@ -1247,7 +1254,7 @@ mod tests {
     #[test]
     fn rabbitmq_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("rabbitmq", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("rabbitmq", &config).unwrap();
 
         assert_eq!(svc.image.repository, "rabbitmq");
         assert_eq!(svc.image.tag, "3-management");
@@ -1271,7 +1278,7 @@ mod tests {
     #[test]
     fn kafka_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("kafka", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("kafka", &config).unwrap();
 
         assert_eq!(svc.image.repository, "redpandadata/redpanda");
         assert_eq!(svc.image.tag, "latest");
@@ -1296,7 +1303,7 @@ mod tests {
     #[test]
     fn nats_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("nats", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("nats", &config).unwrap();
 
         assert_eq!(svc.image.repository, "nats");
         assert_eq!(svc.image.tag, "latest");
@@ -1320,7 +1327,7 @@ mod tests {
     #[test]
     fn elasticsearch_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("elasticsearch", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("elasticsearch", &config).unwrap();
 
         assert_eq!(svc.image.registry, Some("docker.elastic.co".to_string()));
         assert_eq!(svc.image.repository, "elasticsearch/elasticsearch");
@@ -1347,7 +1354,7 @@ mod tests {
     #[test]
     fn meilisearch_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("meilisearch", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("meilisearch", &config).unwrap();
 
         assert_eq!(svc.image.repository, "getmeili/meilisearch");
         assert_eq!(svc.image.tag, "latest");
@@ -1370,14 +1377,14 @@ mod tests {
     #[test]
     fn typesense_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("typesense", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("typesense", &config).unwrap();
 
         assert_eq!(svc.image.repository, "typesense/typesense");
         assert_eq!(svc.image.tag, "latest");
         assert_eq!(svc.category, "search");
         assert!(svc.stateful);
         assert_eq!(svc.ports[0].container_port, 8108);
-        assert!(svc.env.contains_key("TYPESENSE_API_KEY"));
+        assert!(svc.env_from_secret.contains_key("TYPESENSE_API_KEY"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/data");
         assert!(
             svc.healthcheck
@@ -1393,7 +1400,7 @@ mod tests {
     #[test]
     fn minio_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("minio", &config).unwrap();
+        let (svc, env, secret_env) = build_service("minio", &config).unwrap();
 
         assert_eq!(svc.image.repository, "minio/minio");
         assert_eq!(svc.image.tag, "latest");
@@ -1403,8 +1410,8 @@ mod tests {
         assert_eq!(svc.ports[0].container_port, 9000);
         assert_eq!(svc.ports[1].container_port, 9001);
         assert!(svc.command.is_some());
-        assert!(svc.env.contains_key("MINIO_ROOT_USER"));
-        assert!(svc.env.contains_key("MINIO_ROOT_PASSWORD"));
+        assert!(svc.env_from_secret.contains_key("MINIO_ROOT_USER"));
+        assert!(svc.env_from_secret.contains_key("MINIO_ROOT_PASSWORD"));
         assert_eq!(svc.volume_mounts[0].mount_path, "/data");
         assert!(
             svc.healthcheck
@@ -1413,10 +1420,10 @@ mod tests {
                 .any(|c| c.contains("mc ready"))
         );
 
-        assert_eq!(env.len(), 3);
+        assert_eq!(env.len(), 1);
         assert_eq!(env["S3_ENDPOINT"], "http://minio:9000");
-        assert!(env.contains_key("S3_ACCESS_KEY_ID"));
-        assert!(env.contains_key("S3_SECRET_ACCESS_KEY"));
+        assert!(secret_env.contains_key("S3_ACCESS_KEY_ID"));
+        assert!(secret_env.contains_key("S3_SECRET_ACCESS_KEY"));
     }
 
     // -- Prometheus tests --
@@ -1424,7 +1431,7 @@ mod tests {
     #[test]
     fn prometheus_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("prometheus", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("prometheus", &config).unwrap();
 
         assert_eq!(svc.image.repository, "prom/prometheus");
         assert_eq!(svc.image.tag, "latest");
@@ -1446,14 +1453,17 @@ mod tests {
     #[test]
     fn grafana_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("grafana", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("grafana", &config).unwrap();
 
         assert_eq!(svc.image.repository, "grafana/grafana");
         assert_eq!(svc.image.tag, "latest");
         assert_eq!(svc.category, "monitoring");
         assert!(!svc.stateful);
         assert_eq!(svc.ports[0].container_port, 3000);
-        assert!(svc.env.contains_key("GF_SECURITY_ADMIN_PASSWORD"));
+        assert!(
+            svc.env_from_secret
+                .contains_key("GF_SECURITY_ADMIN_PASSWORD")
+        );
         assert_eq!(svc.volume_mounts[0].mount_path, "/var/lib/grafana");
         assert!(
             svc.healthcheck
@@ -1469,7 +1479,7 @@ mod tests {
     #[test]
     fn traefik_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("traefik", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("traefik", &config).unwrap();
 
         assert_eq!(svc.image.repository, "traefik");
         assert_eq!(svc.image.tag, "latest");
@@ -1492,7 +1502,7 @@ mod tests {
     #[test]
     fn nginx_defaults() {
         let config = default_config();
-        let (svc, env) = build_service("nginx", &config).unwrap();
+        let (svc, env, _secret_env) = build_service("nginx", &config).unwrap();
 
         assert_eq!(svc.image.repository, "nginx");
         assert_eq!(svc.image.tag, "latest");
@@ -1532,7 +1542,7 @@ mod tests {
             "prometheus",
         ];
         for name in &stateful {
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             assert!(svc.stateful, "{name} should be stateful");
             assert!(
                 !svc.volume_mounts.is_empty(),
@@ -1547,7 +1557,7 @@ mod tests {
         let config = default_config();
         let stateless = ["memcached", "traefik", "nginx"];
         for name in &stateless {
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             assert!(!svc.stateful, "{name} should not be stateful");
         }
     }
@@ -1576,7 +1586,7 @@ mod tests {
             "nginx",
         ];
         for name in &names {
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             assert!(
                 !svc.healthcheck.command.is_empty(),
                 "{name} should have a healthcheck command"
@@ -1591,9 +1601,9 @@ mod tests {
     #[test]
     fn proxy_services_return_empty_agent_env() {
         let config = default_config();
-        let (_, traefik_env) = build_service("traefik", &config).unwrap();
+        let (_, traefik_env, _) = build_service("traefik", &config).unwrap();
         assert!(traefik_env.is_empty());
-        let (_, nginx_env) = build_service("nginx", &config).unwrap();
+        let (_, nginx_env, _) = build_service("nginx", &config).unwrap();
         assert!(nginx_env.is_empty());
     }
 
@@ -1621,7 +1631,7 @@ mod tests {
             "nginx",
         ];
         for name in &names {
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             assert!(svc.enabled, "{name} should be enabled");
         }
     }
@@ -1650,7 +1660,7 @@ mod tests {
             "nginx",
         ];
         for name in &names {
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             for p in &svc.ports {
                 assert_eq!(p.protocol, "TCP", "{name} port {} should be TCP", p.name);
             }
@@ -1670,7 +1680,7 @@ mod tests {
                 version: Some("custom-ver".to_string()),
                 ..default_config()
             };
-            let (svc, _) = build_service(name, &config).unwrap();
+            let (svc, _, _) = build_service(name, &config).unwrap();
             assert_eq!(
                 svc.image.tag, "custom-ver",
                 "{name} should accept custom version"
