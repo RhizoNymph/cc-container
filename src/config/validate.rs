@@ -1,7 +1,7 @@
 use super::project::{AgentType, ProjectConfig, ServiceConfig};
 
 /// A validation warning (non-fatal).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationWarning {
     pub message: String,
 }
