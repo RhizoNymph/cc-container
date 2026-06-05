@@ -108,6 +108,10 @@ fn vertex_requirements(container_user: &str) -> AuthRequirements {
                 "ANTHROPIC_VERTEX_PROJECT_ID".to_string(),
                 "${ANTHROPIC_VERTEX_PROJECT_ID}".to_string(),
             ),
+            (
+                "CLOUD_ML_REGION".to_string(),
+                "${CLOUD_ML_REGION}".to_string(),
+            ),
         ]),
         volumes: vec![AuthVolume {
             source: "${GOOGLE_APPLICATION_CREDENTIALS}".to_string(),
@@ -121,6 +125,7 @@ fn vertex_requirements(container_user: &str) -> AuthRequirements {
             "# Claude Code - Google Vertex AI auth".to_string(),
             "GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json".to_string(),
             "ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project-id".to_string(),
+            "CLOUD_ML_REGION=us-east5".to_string(),
         ],
     }
 }
