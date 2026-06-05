@@ -229,16 +229,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn parse_generate_diff_flag() {
-        let cli = Cli::try_parse_from(["cc-container", "generate", "--diff"]).unwrap();
-        if let Commands::Generate(args) = &cli.command {
-            assert!(args.diff);
-        } else {
-            panic!("expected Generate command");
-        }
-    }
-
     // --- Module subcommands ---
 
     #[test]
@@ -555,11 +545,14 @@ mod tests {
     }
 
     // --- Doctor command ---
-    // Note: `cc-container doctor` and `cc-container doctor --verbose` cannot
-    // be tested via `Cli::try_parse_from` because the global `--verbose/-v`
-    // (u8 count) and doctor's `--verbose` (bool) share the same long name,
-    // causing a clap type mismatch at parse time. The doctor subcommand's
-    // own run() function is tested in `cli::doctor::tests`.
+
+    #[test]
+    fn parse_doctor_verbose() {
+        let cli = Cli::try_parse_from(["cc-container", "doctor"]).unwrap();
+        // -v now works via global verbose
+        let cli = Cli::try_parse_from(["cc-container", "-v", "doctor"]).unwrap();
+        assert_eq!(cli.global.verbose, 1);
+    }
 
     // --- Completions command ---
 

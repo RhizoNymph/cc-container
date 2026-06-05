@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn config_set_runs_without_error() {
+    fn config_set_returns_unimplemented_error() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
         let global = make_global(config_path);
@@ -182,11 +182,11 @@ mod tests {
             value: "codex".to_string(),
         });
         let result = run(&cmd, &global);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]
-    fn config_get_runs_without_error() {
+    fn config_get_returns_unimplemented_error() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = write_config(dir.path());
         let global = make_global(config_path);
@@ -195,7 +195,7 @@ mod tests {
             key: "project.name".to_string(),
         });
         let result = run(&cmd, &global);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -231,10 +231,10 @@ mod tests {
 }
 
 pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Result<()> {
-    let target_dir = global
-        .target_dir
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+    let target_dir = match global.target_dir.clone() {
+        Some(d) => d,
+        None => std::env::current_dir().map_err(crate::error::Error::Io)?,
+    };
 
     let config_path = global
         .config
@@ -267,12 +267,21 @@ pub fn run(cmd: &ConfigCommand, global: &super::GlobalOpts) -> crate::error::Res
             }
         }
         ConfigCommand::Set(args) => {
-            eprintln!("Config set {}={} not yet implemented", args.key, args.value);
+            return Err(crate::error::Error::Other(format!(
+                "config set {}={} not yet implemented",
+                args.key, args.value
+            )));
         }
         ConfigCommand::Get(args) => {
-            eprintln!("Config get {} not yet implemented", args.key);
+            return Err(crate::error::Error::Other(format!(
+                "config get {} not yet implemented",
+                args.key
+            )));
         }
         ConfigCommand::Edit => {
+            if !config_path.exists() {
+                return Err(crate::error::Error::ConfigNotFound(config_path));
+            }
             let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
             let parts: Vec<&str> = editor.split_whitespace().collect();
             if parts.is_empty() {

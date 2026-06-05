@@ -25,10 +25,10 @@ pub enum InitTemplate {
 }
 
 pub fn run(args: &InitArgs, global: &super::GlobalOpts) -> crate::error::Result<()> {
-    let target = global
-        .target_dir
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+    let target = match global.target_dir.clone() {
+        Some(d) => d,
+        None => std::env::current_dir().map_err(crate::error::Error::Io)?,
+    };
 
     // Check for existing config BEFORE running wizard
     let config_path = target.join("cc-container.toml");
