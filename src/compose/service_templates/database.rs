@@ -23,11 +23,22 @@ pub fn postgres(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String
         image: Some(format!("postgres:{version}")),
         ports: dct::Ports::Short(vec![format!("{host_port}:5432")]),
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("POSTGRES_DB".to_string(), Some(dct::SingleValue::String(db.clone()))),
-            ("POSTGRES_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
-            ("POSTGRES_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{password_env}}}")))),
+            (
+                "POSTGRES_DB".to_string(),
+                Some(dct::SingleValue::String(db.clone())),
+            ),
+            (
+                "POSTGRES_USER".to_string(),
+                Some(dct::SingleValue::String(user.clone())),
+            ),
+            (
+                "POSTGRES_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(format!("${{{password_env}}}"))),
+            ),
         ])),
-        volumes: vec![dct::Volumes::Simple(format!("pgdata-{db}:/var/lib/postgresql/data"))],
+        volumes: vec![dct::Volumes::Simple(format!(
+            "pgdata-{db}:/var/lib/postgresql/data"
+        ))],
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "pg_isready -U ${POSTGRES_USER:-dev}".to_string(),
@@ -62,12 +73,28 @@ pub fn mysql(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String, S
         image: Some(format!("mysql:{version}")),
         ports: dct::Ports::Short(vec![format!("{host_port}:3306")]),
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("MYSQL_DATABASE".to_string(), Some(dct::SingleValue::String(db.clone()))),
-            ("MYSQL_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
-            ("MYSQL_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{password_env}}}")))),
-            ("MYSQL_ROOT_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{root_password_env}}}")))),
+            (
+                "MYSQL_DATABASE".to_string(),
+                Some(dct::SingleValue::String(db.clone())),
+            ),
+            (
+                "MYSQL_USER".to_string(),
+                Some(dct::SingleValue::String(user.clone())),
+            ),
+            (
+                "MYSQL_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(format!("${{{password_env}}}"))),
+            ),
+            (
+                "MYSQL_ROOT_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(format!(
+                    "${{{root_password_env}}}"
+                ))),
+            ),
         ])),
-        volumes: vec![dct::Volumes::Simple(format!("mysqldata-{db}:/var/lib/mysql"))],
+        volumes: vec![dct::Volumes::Simple(format!(
+            "mysqldata-{db}:/var/lib/mysql"
+        ))],
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "mysqladmin ping -h localhost".to_string(),
@@ -102,12 +129,28 @@ pub fn mariadb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
         image: Some(format!("mariadb:{version}")),
         ports: dct::Ports::Short(vec![format!("{host_port}:3306")]),
         environment: dct::Environment::KvPair(IndexMap::from([
-            ("MARIADB_DATABASE".to_string(), Some(dct::SingleValue::String(db.clone()))),
-            ("MARIADB_USER".to_string(), Some(dct::SingleValue::String(user.clone()))),
-            ("MARIADB_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{password_env}}}")))),
-            ("MARIADB_ROOT_PASSWORD".to_string(), Some(dct::SingleValue::String(format!("${{{root_password_env}}}")))),
+            (
+                "MARIADB_DATABASE".to_string(),
+                Some(dct::SingleValue::String(db.clone())),
+            ),
+            (
+                "MARIADB_USER".to_string(),
+                Some(dct::SingleValue::String(user.clone())),
+            ),
+            (
+                "MARIADB_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(format!("${{{password_env}}}"))),
+            ),
+            (
+                "MARIADB_ROOT_PASSWORD".to_string(),
+                Some(dct::SingleValue::String(format!(
+                    "${{{root_password_env}}}"
+                ))),
+            ),
         ])),
-        volumes: vec![dct::Volumes::Simple(format!("mariadbdata-{db}:/var/lib/mysql"))],
+        volumes: vec![dct::Volumes::Simple(format!(
+            "mariadbdata-{db}:/var/lib/mysql"
+        ))],
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "mariadb-admin ping -h localhost".to_string(),
@@ -166,12 +209,13 @@ pub fn cockroachdb(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<Str
 
     let svc = dct::Service {
         image: Some(format!("cockroachdb/cockroach:{version}")),
-        command: Some(dct::Command::Simple("start-single-node --insecure".to_string())),
-        ports: dct::Ports::Short(vec![
-            format!("{host_port}:26257"),
-            "8080:8080".to_string(),
-        ]),
-        volumes: vec![dct::Volumes::Simple("crdbdata:/cockroach/cockroach-data".to_string())],
+        command: Some(dct::Command::Simple(
+            "start-single-node --insecure".to_string(),
+        )),
+        ports: dct::Ports::Short(vec![format!("{host_port}:26257"), "8080:8080".to_string()]),
+        volumes: vec![dct::Volumes::Simple(
+            "crdbdata:/cockroach/cockroach-data".to_string(),
+        )],
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "curl -f http://localhost:8080/health?ready=1 || exit 1".to_string(),
@@ -274,8 +318,14 @@ mod tests {
     #[test]
     fn test_postgres_custom_database_and_user() {
         let mut extra = IndexMap::new();
-        extra.insert("database".to_string(), toml::Value::String("mydb".to_string()));
-        extra.insert("user".to_string(), toml::Value::String("myuser".to_string()));
+        extra.insert(
+            "database".to_string(),
+            toml::Value::String("mydb".to_string()),
+        );
+        extra.insert(
+            "user".to_string(),
+            toml::Value::String("myuser".to_string()),
+        );
 
         let config = ServiceConfig {
             extra,
@@ -296,7 +346,10 @@ mod tests {
     #[test]
     fn test_postgres_custom_password_env() {
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("MY_PG_PASS".to_string()));
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("MY_PG_PASS".to_string()),
+        );
 
         let config = ServiceConfig {
             extra,
@@ -365,8 +418,14 @@ mod tests {
     #[test]
     fn test_mysql_custom_password_envs() {
         let mut extra = IndexMap::new();
-        extra.insert("password_env".to_string(), toml::Value::String("CUSTOM_PW".to_string()));
-        extra.insert("root_password_env".to_string(), toml::Value::String("CUSTOM_ROOT_PW".to_string()));
+        extra.insert(
+            "password_env".to_string(),
+            toml::Value::String("CUSTOM_PW".to_string()),
+        );
+        extra.insert(
+            "root_password_env".to_string(),
+            toml::Value::String("CUSTOM_ROOT_PW".to_string()),
+        );
 
         let config = ServiceConfig {
             extra,
@@ -528,14 +587,21 @@ mod tests {
         let config = default_config();
 
         for (name, builder) in [
-            ("postgres", postgres as fn(&ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)>),
+            (
+                "postgres",
+                postgres as fn(&ServiceConfig) -> Result<(dct::Service, IndexMap<String, String>)>,
+            ),
             ("mysql", mysql),
             ("mariadb", mariadb),
             ("mongodb", mongodb),
             ("cockroachdb", cockroachdb),
         ] {
             let (svc, _) = builder(&config).unwrap();
-            assert!(svc.healthcheck.is_some(), "{} should have a healthcheck", name);
+            assert!(
+                svc.healthcheck.is_some(),
+                "{} should have a healthcheck",
+                name
+            );
             let hc = svc.healthcheck.as_ref().unwrap();
             assert!(hc.test.is_some(), "{} healthcheck should have a test", name);
             assert_eq!(hc.retries, 5, "{} healthcheck retries should be 5", name);

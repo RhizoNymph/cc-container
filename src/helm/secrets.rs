@@ -1,6 +1,4 @@
-use crate::config::project::{
-    AgentType, ClaudeAuthMethod, CodexAuthMethod, ProjectConfig,
-};
+use crate::config::project::{AgentType, ClaudeAuthMethod, CodexAuthMethod, ProjectConfig};
 use crate::helm::types::{SecretKeyRef, SecretsValues};
 use indexmap::IndexMap;
 
@@ -48,18 +46,15 @@ pub fn build(config: &ProjectConfig) -> SecretsValues {
         }
         match name.as_str() {
             "postgres" => {
-                service_credentials
-                    .insert("POSTGRES_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("POSTGRES_PASSWORD".to_string(), "changeme".to_string());
             }
             "mysql" => {
-                service_credentials
-                    .insert("MYSQL_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("MYSQL_PASSWORD".to_string(), "changeme".to_string());
                 service_credentials
                     .insert("MYSQL_ROOT_PASSWORD".to_string(), "changeme".to_string());
             }
             "mariadb" => {
-                service_credentials
-                    .insert("MARIADB_PASSWORD".to_string(), "changeme".to_string());
+                service_credentials.insert("MARIADB_PASSWORD".to_string(), "changeme".to_string());
                 service_credentials
                     .insert("MARIADB_ROOT_PASSWORD".to_string(), "changeme".to_string());
             }
@@ -130,10 +125,7 @@ fn claude_auth_keys(method: ClaudeAuthMethod) -> Vec<SecretKeyRef> {
 }
 
 /// Return the secret key refs needed for a given Codex auth method.
-fn codex_auth_keys(
-    method: CodexAuthMethod,
-    custom_env_key: Option<&str>,
-) -> Vec<SecretKeyRef> {
+fn codex_auth_keys(method: CodexAuthMethod, custom_env_key: Option<&str>) -> Vec<SecretKeyRef> {
     match method {
         CodexAuthMethod::ApiKey => vec![SecretKeyRef {
             key: "OPENAI_API_KEY".to_string(),

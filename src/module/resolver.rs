@@ -299,10 +299,7 @@ mod tests {
             "ubuntu".to_string(),
             toml::Value::Table(toml::map::Map::new()),
         );
-        enabled.insert(
-            "git".to_string(),
-            toml::Value::Table(toml::map::Map::new()),
-        );
+        enabled.insert("git".to_string(), toml::Value::Table(toml::map::Map::new()));
         enabled.insert(
             "user-setup".to_string(),
             toml::Value::Table(toml::map::Map::new()),
@@ -322,10 +319,19 @@ mod tests {
 
         assert!(pos("ubuntu") < pos("git"), "ubuntu before git");
         assert!(pos("ubuntu") < pos("node"), "ubuntu before node");
-        assert!(pos("ubuntu") < pos("user-setup"), "ubuntu before user-setup");
-        assert!(pos("ubuntu") < pos("claude-code"), "ubuntu before claude-code");
+        assert!(
+            pos("ubuntu") < pos("user-setup"),
+            "ubuntu before user-setup"
+        );
+        assert!(
+            pos("ubuntu") < pos("claude-code"),
+            "ubuntu before claude-code"
+        );
         assert!(pos("node") < pos("claude-code"), "node before claude-code");
-        assert!(pos("git") < pos("claude-code"), "git before claude-code (after constraint)");
+        assert!(
+            pos("git") < pos("claude-code"),
+            "git before claude-code (after constraint)"
+        );
     }
 
     #[test]
@@ -353,10 +359,7 @@ mod tests {
         let resolver = ModuleResolver::new(&registry);
 
         let mut enabled = IndexMap::new();
-        enabled.insert(
-            "git".to_string(),
-            toml::Value::Table(toml::map::Map::new()),
-        );
+        enabled.insert("git".to_string(), toml::Value::Table(toml::map::Map::new()));
         enabled.insert(
             "build-essential".to_string(),
             toml::Value::Table(toml::map::Map::new()),
@@ -427,10 +430,7 @@ mod tests {
             "ubuntu".to_string(),
             toml::Value::Table(toml::map::Map::new()),
         );
-        enabled.insert(
-            "git".to_string(),
-            toml::Value::Table(toml::map::Map::new()),
-        );
+        enabled.insert("git".to_string(), toml::Value::Table(toml::map::Map::new()));
         enabled.insert(
             "python".to_string(),
             toml::Value::Table(toml::map::Map::new()),
@@ -470,10 +470,7 @@ mod tests {
             Err(Error::ModuleNotFound(name)) => {
                 assert_eq!(name, "totally-fake-module");
             }
-            other => panic!(
-                "Expected ModuleNotFound error, got: {:?}",
-                other
-            ),
+            other => panic!("Expected ModuleNotFound error, got: {:?}", other),
         }
     }
 
@@ -519,10 +516,7 @@ requires = ["phantom-module"]
                 assert_eq!(required, "phantom-module");
                 assert_eq!(requester, "needs-phantom");
             }
-            other => panic!(
-                "Expected MissingDependency error, got: {:?}",
-                other
-            ),
+            other => panic!("Expected MissingDependency error, got: {:?}", other),
         }
     }
 
@@ -599,10 +593,7 @@ conflicts = ["git"]
         let resolver = ModuleResolver::new(&registry);
 
         let mut enabled = IndexMap::new();
-        enabled.insert(
-            "git".to_string(),
-            toml::Value::Table(toml::map::Map::new()),
-        );
+        enabled.insert("git".to_string(), toml::Value::Table(toml::map::Map::new()));
         enabled.insert(
             "anti-git".to_string(),
             toml::Value::Table(toml::map::Map::new()),

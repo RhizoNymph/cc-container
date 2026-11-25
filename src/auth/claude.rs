@@ -48,10 +48,7 @@ fn oauth_requirements(container_user: &str) -> AuthRequirements {
 fn bedrock_requirements() -> AuthRequirements {
     AuthRequirements {
         env_vars: IndexMap::from([
-            (
-                "CLAUDE_CODE_USE_BEDROCK".to_string(),
-                "1".to_string(),
-            ),
+            ("CLAUDE_CODE_USE_BEDROCK".to_string(), "1".to_string()),
             (
                 "AWS_ACCESS_KEY_ID".to_string(),
                 "${AWS_ACCESS_KEY_ID}".to_string(),
@@ -64,10 +61,7 @@ fn bedrock_requirements() -> AuthRequirements {
                 "AWS_SESSION_TOKEN".to_string(),
                 "${AWS_SESSION_TOKEN:-}".to_string(),
             ),
-            (
-                "AWS_REGION".to_string(),
-                "${AWS_REGION}".to_string(),
-            ),
+            ("AWS_REGION".to_string(), "${AWS_REGION}".to_string()),
         ]),
         volumes: vec![],
         env_example_lines: vec![
@@ -83,18 +77,12 @@ fn bedrock_requirements() -> AuthRequirements {
 fn bedrock_api_key_requirements() -> AuthRequirements {
     AuthRequirements {
         env_vars: IndexMap::from([
-            (
-                "CLAUDE_CODE_USE_BEDROCK".to_string(),
-                "1".to_string(),
-            ),
+            ("CLAUDE_CODE_USE_BEDROCK".to_string(), "1".to_string()),
             (
                 "AWS_BEARER_TOKEN_BEDROCK".to_string(),
                 "${AWS_BEARER_TOKEN_BEDROCK}".to_string(),
             ),
-            (
-                "AWS_REGION".to_string(),
-                "${AWS_REGION}".to_string(),
-            ),
+            ("AWS_REGION".to_string(), "${AWS_REGION}".to_string()),
         ]),
         volumes: vec![],
         env_example_lines: vec![
@@ -108,13 +96,13 @@ fn bedrock_api_key_requirements() -> AuthRequirements {
 fn vertex_requirements(container_user: &str) -> AuthRequirements {
     AuthRequirements {
         env_vars: IndexMap::from([
-            (
-                "CLAUDE_CODE_USE_VERTEX".to_string(),
-                "1".to_string(),
-            ),
+            ("CLAUDE_CODE_USE_VERTEX".to_string(), "1".to_string()),
             (
                 "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
-                format!("/home/{}/.config/gcloud/application_default_credentials.json", container_user),
+                format!(
+                    "/home/{}/.config/gcloud/application_default_credentials.json",
+                    container_user
+                ),
             ),
             (
                 "ANTHROPIC_VERTEX_PROJECT_ID".to_string(),
@@ -123,7 +111,10 @@ fn vertex_requirements(container_user: &str) -> AuthRequirements {
         ]),
         volumes: vec![AuthVolume {
             source: "${GOOGLE_APPLICATION_CREDENTIALS}".to_string(),
-            target: format!("/home/{}/.config/gcloud/application_default_credentials.json", container_user),
+            target: format!(
+                "/home/{}/.config/gcloud/application_default_credentials.json",
+                container_user
+            ),
             read_only: true,
         }],
         env_example_lines: vec![
@@ -187,10 +178,11 @@ mod tests {
     #[test]
     fn api_key_env_example_mentions_api_key() {
         let req = requirements(&make_config(ClaudeAuthMethod::ApiKey), "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("ANTHROPIC_API_KEY")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("ANTHROPIC_API_KEY"))
+        );
     }
 
     // ── OAuth ────────────────────────────────────────────────────────
@@ -208,10 +200,7 @@ mod tests {
 
         let vol = &req.volumes[0];
         assert_eq!(vol.source, "${HOME}/.claude/.credentials.json");
-        assert_eq!(
-            vol.target,
-            "/home/developer/.claude/.credentials.json"
-        );
+        assert_eq!(vol.target, "/home/developer/.claude/.credentials.json");
         assert!(vol.read_only);
     }
 
@@ -227,10 +216,11 @@ mod tests {
     #[test]
     fn oauth_env_example_mentions_no_env_vars() {
         let req = requirements(&make_config(ClaudeAuthMethod::Oauth), "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("No env vars needed")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("No env vars needed"))
+        );
     }
 
     // ── Bedrock (IAM credentials) ────────────────────────────────────
@@ -238,10 +228,7 @@ mod tests {
     #[test]
     fn bedrock_sets_use_bedrock_flag() {
         let req = requirements(&make_config(ClaudeAuthMethod::Bedrock), "dev");
-        assert_eq!(
-            req.env_vars.get("CLAUDE_CODE_USE_BEDROCK").unwrap(),
-            "1"
-        );
+        assert_eq!(req.env_vars.get("CLAUDE_CODE_USE_BEDROCK").unwrap(), "1");
     }
 
     #[test]
@@ -259,10 +246,7 @@ mod tests {
             req.env_vars.get("AWS_SESSION_TOKEN").unwrap(),
             "${AWS_SESSION_TOKEN:-}"
         );
-        assert_eq!(
-            req.env_vars.get("AWS_REGION").unwrap(),
-            "${AWS_REGION}"
-        );
+        assert_eq!(req.env_vars.get("AWS_REGION").unwrap(), "${AWS_REGION}");
     }
 
     #[test]
@@ -282,7 +266,10 @@ mod tests {
         let req = requirements(&make_config(ClaudeAuthMethod::Bedrock), "dev");
         // The `:-` syntax means empty-default, so the token is optional
         let val = req.env_vars.get("AWS_SESSION_TOKEN").unwrap();
-        assert!(val.contains(":-"), "session token should have an empty default");
+        assert!(
+            val.contains(":-"),
+            "session token should have an empty default"
+        );
     }
 
     // ── Bedrock API Key ──────────────────────────────────────────────
@@ -290,10 +277,7 @@ mod tests {
     #[test]
     fn bedrock_api_key_sets_use_bedrock_flag() {
         let req = requirements(&make_config(ClaudeAuthMethod::BedrockApiKey), "dev");
-        assert_eq!(
-            req.env_vars.get("CLAUDE_CODE_USE_BEDROCK").unwrap(),
-            "1"
-        );
+        assert_eq!(req.env_vars.get("CLAUDE_CODE_USE_BEDROCK").unwrap(), "1");
     }
 
     #[test]
@@ -303,10 +287,7 @@ mod tests {
             req.env_vars.get("AWS_BEARER_TOKEN_BEDROCK").unwrap(),
             "${AWS_BEARER_TOKEN_BEDROCK}"
         );
-        assert_eq!(
-            req.env_vars.get("AWS_REGION").unwrap(),
-            "${AWS_REGION}"
-        );
+        assert_eq!(req.env_vars.get("AWS_REGION").unwrap(), "${AWS_REGION}");
     }
 
     #[test]
@@ -333,10 +314,7 @@ mod tests {
     #[test]
     fn vertex_sets_use_vertex_flag() {
         let req = requirements(&make_config(ClaudeAuthMethod::Vertex), "dev");
-        assert_eq!(
-            req.env_vars.get("CLAUDE_CODE_USE_VERTEX").unwrap(),
-            "1"
-        );
+        assert_eq!(req.env_vars.get("CLAUDE_CODE_USE_VERTEX").unwrap(), "1");
     }
 
     #[test]
@@ -415,10 +393,11 @@ mod tests {
     #[test]
     fn proxy_env_example_mentions_base_url() {
         let req = requirements(&make_config(ClaudeAuthMethod::Proxy), "dev");
-        assert!(req
-            .env_example_lines
-            .iter()
-            .any(|l| l.contains("ANTHROPIC_BASE_URL")));
+        assert!(
+            req.env_example_lines
+                .iter()
+                .any(|l| l.contains("ANTHROPIC_BASE_URL"))
+        );
     }
 
     // ── Cross-method: container_user is irrelevant for non-mount methods ─

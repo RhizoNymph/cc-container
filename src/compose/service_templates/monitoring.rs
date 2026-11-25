@@ -39,10 +39,15 @@ pub fn grafana(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
     let svc = dct::Service {
         image: Some(format!("grafana/grafana:{version}")),
         ports: dct::Ports::Short(vec![format!("{port}:3000")]),
-        volumes: vec![dct::Volumes::Simple("grafanadata:/var/lib/grafana".to_string())],
-        environment: dct::Environment::KvPair(IndexMap::from([
-            ("GF_SECURITY_ADMIN_PASSWORD".to_string(), Some(dct::SingleValue::String("${GRAFANA_PASSWORD:-admin}".to_string()))),
-        ])),
+        volumes: vec![dct::Volumes::Simple(
+            "grafanadata:/var/lib/grafana".to_string(),
+        )],
+        environment: dct::Environment::KvPair(IndexMap::from([(
+            "GF_SECURITY_ADMIN_PASSWORD".to_string(),
+            Some(dct::SingleValue::String(
+                "${GRAFANA_PASSWORD:-admin}".to_string(),
+            )),
+        )])),
         healthcheck: Some(dct::Healthcheck {
             test: Some(dct::HealthcheckTest::Single(
                 "wget -q --spider http://localhost:3000/api/health || exit 1".to_string(),
@@ -56,10 +61,8 @@ pub fn grafana(config: &ServiceConfig) -> Result<(dct::Service, IndexMap<String,
         ..Default::default()
     };
 
-    let agent_env = IndexMap::from([(
-        "GRAFANA_URL".to_string(),
-        "http://grafana:3000".to_string(),
-    )]);
+    let agent_env =
+        IndexMap::from([("GRAFANA_URL".to_string(), "http://grafana:3000".to_string())]);
 
     Ok((svc, agent_env))
 }

@@ -149,10 +149,24 @@ mod tests {
     #[test]
     fn service_info_all_known_services() {
         let known = [
-            "postgres", "mysql", "mariadb", "mongodb", "cockroachdb",
-            "redis", "memcached", "rabbitmq", "kafka", "nats",
-            "elasticsearch", "meilisearch", "typesense", "minio",
-            "prometheus", "grafana", "traefik", "nginx",
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "cockroachdb",
+            "redis",
+            "memcached",
+            "rabbitmq",
+            "kafka",
+            "nats",
+            "elasticsearch",
+            "meilisearch",
+            "typesense",
+            "minio",
+            "prometheus",
+            "grafana",
+            "traefik",
+            "nginx",
         ];
         for name in &known {
             let cmd = ServiceCommand::Info(ServiceInfoArgs {
@@ -170,16 +184,23 @@ pub fn run(cmd: &ServiceCommand, _global: &super::GlobalOpts) -> crate::error::R
             let templates = crate::compose::service_templates::list_all();
             let filter_cat = args.category.as_deref();
 
-            println!("{:<20} {:<12} {:<8} DESCRIPTION", "NAME", "CATEGORY", "PORT");
+            println!(
+                "{:<20} {:<12} {:<8} DESCRIPTION",
+                "NAME", "CATEGORY", "PORT"
+            );
             println!("{}", "-".repeat(65));
 
             for t in &templates {
                 let cat = t.category.to_string();
                 if let Some(fc) = filter_cat
-                    && cat != fc {
-                        continue;
-                    }
-                println!("{:<20} {:<12} {:<8} {}", t.name, cat, t.default_port, t.description);
+                    && cat != fc
+                {
+                    continue;
+                }
+                println!(
+                    "{:<20} {:<12} {:<8} {}",
+                    t.name, cat, t.default_port, t.description
+                );
             }
         }
         ServiceCommand::Info(args) => {
