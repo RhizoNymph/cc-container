@@ -171,8 +171,7 @@ mod tests {
             },
             "dev",
         );
-        let codex_req =
-            codex::requirements(&codex_config(CodexAuthMethod::ApiKey), "dev");
+        let codex_req = codex::requirements(&codex_config(CodexAuthMethod::ApiKey), "dev");
 
         // They must not share any env var keys
         for key in claude_req.env_vars.keys() {
@@ -192,17 +191,14 @@ mod tests {
             },
             "dev",
         );
-        let codex_req =
-            codex::requirements(&codex_config(CodexAuthMethod::Oauth), "dev");
+        let codex_req = codex::requirements(&codex_config(CodexAuthMethod::Oauth), "dev");
 
         assert_ne!(
-            claude_req.volumes[0].source,
-            codex_req.volumes[0].source,
+            claude_req.volumes[0].source, codex_req.volumes[0].source,
             "Claude and Codex OAuth should mount from different host paths"
         );
         assert_ne!(
-            claude_req.volumes[0].target,
-            codex_req.volumes[0].target,
+            claude_req.volumes[0].target, codex_req.volumes[0].target,
             "Claude and Codex OAuth should mount to different container paths"
         );
     }

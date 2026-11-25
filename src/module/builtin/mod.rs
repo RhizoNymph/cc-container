@@ -50,10 +50,7 @@ pub fn load_all() -> Vec<BuiltinModule> {
             "security/user_setup.toml",
             "security/user_setup.dockerfile.j2"
         ),
-        builtin!(
-            "security/firewall.toml",
-            "security/firewall.dockerfile.j2"
-        ),
+        builtin!("security/firewall.toml", "security/firewall.dockerfile.j2"),
     ]
 }
 
@@ -183,11 +180,7 @@ mod tests {
                 for other in &base_names {
                     if other != &m.definition.module.name {
                         assert!(
-                            m.definition
-                                .module
-                                .dependencies
-                                .conflicts
-                                .contains(other),
+                            m.definition.module.dependencies.conflicts.contains(other),
                             "Base module '{}' should conflict with '{}'",
                             m.definition.module.name,
                             other

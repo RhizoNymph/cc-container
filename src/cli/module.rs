@@ -165,9 +165,10 @@ pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Re
                 let meta = &entry.definition.module;
                 let cat = meta.category.to_string();
                 if let Some(fc) = filter_cat
-                    && cat != fc {
-                        continue;
-                    }
+                    && cat != fc
+                {
+                    continue;
+                }
                 println!("{:<20} {:<10} {}", meta.name, cat, meta.description);
             }
         }
@@ -190,7 +191,10 @@ pub fn run(cmd: &ModuleCommand, _global: &super::GlobalOpts) -> crate::error::Re
                         .as_ref()
                         .map(|v| v.to_string())
                         .unwrap_or_else(|| "(none)".to_string());
-                    println!("  {:<20} {:?}, default={}, {}", name, param.param_type, default, param.description);
+                    println!(
+                        "  {:<20} {:?}, default={}, {}",
+                        name, param.param_type, default, param.description
+                    );
                 }
             }
 

@@ -105,7 +105,10 @@ mod tests {
     fn build_claude_includes_anthropic_domain() {
         let config = minimal_config();
         let np = build(&config);
-        assert!(np.allowed_domains.contains(&"api.anthropic.com".to_string()));
+        assert!(
+            np.allowed_domains
+                .contains(&"api.anthropic.com".to_string())
+        );
     }
 
     #[test]
@@ -137,7 +140,10 @@ mod tests {
         let mut config = minimal_config();
         config.agent.agent_type = AgentType::Codex;
         let np = build(&config);
-        assert!(!np.allowed_domains.contains(&"api.anthropic.com".to_string()));
+        assert!(
+            !np.allowed_domains
+                .contains(&"api.anthropic.com".to_string())
+        );
     }
 
     // -- Both defaults --
@@ -147,7 +153,10 @@ mod tests {
         let mut config = minimal_config();
         config.agent.agent_type = AgentType::Both;
         let np = build(&config);
-        assert!(np.allowed_domains.contains(&"api.anthropic.com".to_string()));
+        assert!(
+            np.allowed_domains
+                .contains(&"api.anthropic.com".to_string())
+        );
         assert!(np.allowed_domains.contains(&"api.openai.com".to_string()));
     }
 
@@ -173,7 +182,10 @@ mod tests {
         let mut config = minimal_config();
         config.firewall.allowed_domains = vec!["custom.example.com".to_string()];
         let np = build(&config);
-        assert!(np.allowed_domains.contains(&"custom.example.com".to_string()));
+        assert!(
+            np.allowed_domains
+                .contains(&"custom.example.com".to_string())
+        );
     }
 
     #[test]
@@ -195,10 +207,7 @@ mod tests {
     #[test]
     fn build_maps_cidrs() {
         let mut config = minimal_config();
-        config.firewall.allowed_cidrs = vec![
-            "10.0.0.0/8".to_string(),
-            "172.16.0.0/12".to_string(),
-        ];
+        config.firewall.allowed_cidrs = vec!["10.0.0.0/8".to_string(), "172.16.0.0/12".to_string()];
         let np = build(&config);
         assert_eq!(np.allowed_cidrs.len(), 2);
         assert!(np.allowed_cidrs.contains(&"10.0.0.0/8".to_string()));
